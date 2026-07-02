@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "wedding_config": {
+      "title": "WeddingConfig",
+      "description": "Configuración del diseño y contenido de la invitación de boda.",
+      "type": "object",
+      "properties": {
+        "coupleName1": { "type": "string" },
+        "coupleName2": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "dateText": { "type": "string" },
+        "dateIso": { "type": "string", "format": "date-time" },
+        "locationText": { "type": "string" },
+        "locationName": { "type": "string" },
+        "overlayOpenText": { "type": "string" },
+        "musicUrl": { "type": "string" },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "bg": { "type": "string" },
+            "text": { "type": "string" },
+            "textDark": { "type": "string" },
+            "border": { "type": "string" },
+            "accent": { "type": "string" },
+            "fontTitle": { "type": "string" },
+            "fontBody": { "type": "string" },
+            "cardBorderRadius": { "type": "string" },
+            "cardBorderWidth": { "type": "string" },
+            "paddingMultiplier": { "type": "number" }
+          }
+        },
+        "sections": {
+          "type": "object",
+          "properties": {
+            "showOverlay": { "type": "boolean" },
+            "showCountdown": { "type": "boolean" },
+            "showDetails": { "type": "boolean" },
+            "showRsvp": { "type": "boolean" }
+          }
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "icon": { "type": "string" }
+            }
+          }
+        },
+        "images": {
+          "type": "object",
+          "properties": {
+            "portrait": { "type": "string" },
+            "overlayLeft": { "type": "string" },
+            "overlayRight": { "type": "string" },
+            "overlayTop": { "type": "string" },
+            "overlayBottom": { "type": "string" },
+            "overlayCenter": { "type": "string" }
+          }
+        }
+      },
+      "required": ["coupleName1", "coupleName2", "dateIso"]
+    },
+    "rsvp": {
+      "title": "RsvpResponse",
+      "description": "Confirmación de asistencia enviada por un invitado.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "attending": { "type": "string", "enum": ["yes", "no"] },
+        "guestsCount": { "type": "number" },
+        "notes": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "phone", "attending", "guestsCount"]
+    },
+    "guest": {
+      "title": "Guest",
+      "description": "Un invitado en la lista oficial de la boda con un número asignado de pases.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "maxGuests": { "type": "number" },
+        "code": { "type": "string" },
+        "confirmed": { "type": "boolean" },
+        "attending": { "type": "string", "enum": ["yes", "no"] },
+        "guestsCount": { "type": "number" },
+        "notes": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "maxGuests", "code"]
+    }
+  },
+  "firestore": {
+    "/wedding_config/{docId}": {
+      "schema": { "$ref": "#/entities/wedding_config" },
+      "description": "Colección singleton para almacenar la configuración de la invitación de boda."
+    },
+    "/rsvps/{rsvpId}": {
+      "schema": { "$ref": "#/entities/rsvp" },
+      "description": "Colección para almacenar todas las confirmaciones RSVP de los invitados."
+    },
+    "/guests/{guestId}": {
+      "schema": { "$ref": "#/entities/guest" },
+      "description": "Colección para almacenar la lista de invitados oficiales, pases permitidos y confirmación personalizada."
+    }
+  }
+}

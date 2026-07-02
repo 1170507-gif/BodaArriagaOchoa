@@ -1,0 +1,8 @@
+{
+  "name": "Arriaga Ochoa",
+  "description": "Una invitación de boda digital, interactiva y completamente editable con RSVP en tiempo real, música de fondo, cuenta regresiva y personalización de colores, tipografías y secciones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

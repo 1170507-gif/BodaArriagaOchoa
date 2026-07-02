@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,300..900;1,300..900&family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Inter:ital,wght@0,100..900;1,100..900&family=Cinzel:wght@400..900&family=Great+Vibes&family=Lato:ital,wght@0,100..900;1,100..900&display=swap');
+@import "tailwindcss";
+
+/* Custom Scrollbar for Editor Panel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 148, 148, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 148, 148, 0.5);
+}
+
+/* Animations */
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+.pulse-slow {
+  animation: pulse-slow 3s infinite ease-in-out;
+}
+
+/* Envelope Scroll Styles */
+@keyframes floatB {
+  0%, 100% { transform: translateX(-70px) translateY(0); }
+  50% { transform: translateX(-70px) translateY(-10px); }
+}
+@keyframes floatC {
+  0%, 100% { transform: translateX(6px) translateY(0); }
+  50% { transform: translateX(6px) translateY(-10px); }
+}
+
+.animate-floatB {
+  animation: floatB 4.8s ease-in-out infinite;
+}
+
+.animate-floatC {
+  animation: floatC 4.1s ease-in-out infinite;
+}
+
+.envelope-wrapper {
+  perspective: 1800px;
+}
+
+.backface-visibility-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.transform-style-preserve-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+@media (max-width: 768px) {
+  .deco-left-resp {
+    width: 94px !important;
+    top: 62px !important;
+    transform: translateX(-58px) !important;
+  }
+  .deco-right-resp {
+    width: 60px !important;
+    top: 86px !important;
+    transform: translateX(4px) !important;
+  }
+  .letter-resp {
+    top: 33% !important;
+    width: 71% !important;
+    min-height: 58% !important;
+    max-height: 63% !important;
+  }
+  .letter-inner-resp {
+    padding: 24px 18px 24px !important;
+  }
+}
+

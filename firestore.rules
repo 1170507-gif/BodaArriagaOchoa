@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprint for WeddingConfig
+    function isValidWeddingConfig(data) {
+      return data.coupleName1 is string && data.coupleName1.size() <= 100
+          && data.coupleName2 is string && data.coupleName2.size() <= 100
+          && data.dateIso is string && data.dateIso.size() <= 50
+          && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 500))
+          && (!('locationText' in data) || (data.locationText is string && data.locationText.size() <= 500))
+          && (!('locationName' in data) || (data.locationName is string && data.locationName.size() <= 200));
+    }
+
+    // Validation Blueprint for RSVP Response
+    function isValidRsvp(data) {
+      return data.fullName is string && data.fullName.size() <= 100
+          && data.phone is string && data.phone.size() <= 50
+          && data.attending is string && (data.attending == 'yes' || data.attending == 'no')
+          && data.guestsCount is int && data.guestsCount >= 0 && data.guestsCount <= 20
+          && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+          && (!('submittedAt' in data) || (data.submittedAt is string && data.submittedAt.size() <= 50));
+    }
+
+    // Validation Blueprint for Guest
+    function isValidGuest(data) {
+      return data.name is string && data.name.size() <= 100
+          && data.maxGuests is int && data.maxGuests >= 1 && data.maxGuests <= 50
+          && data.code is string && data.code.size() <= 100 && data.code.matches('^[a-zA-Z0-9_\\-]+$')
+          && (!('confirmed' in data) || data.confirmed is bool)
+          && (!('attending' in data) || (data.attending is string && (data.attending == 'yes' || data.attending == 'no')))
+          && (!('guestsCount' in data) || (data.guestsCount is int && data.guestsCount >= 0 && data.guestsCount <= 20))
+          && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+          && (!('submittedAt' in data) || (data.submittedAt is string && data.submittedAt.size() <= 50));
+    }
+
+    // Wedding invitation configuration rules
+    match /wedding_config/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId) && docId == 'default_config' && isValidWeddingConfig(incoming());
+    }
+
+    // RSVP confirmations rules
+    match /rsvps/{rsvpId} {
+      allow read: if true;
+      allow create: if isValidId(rsvpId) && isValidRsvp(incoming());
+      allow update: if isValidId(rsvpId) && isValidRsvp(incoming());
+      allow delete: if isValidId(rsvpId);
+    }
+
+    // Guest list and personalized RSVP rules
+    match /guests/{guestId} {
+      allow read: if true;
+      allow create: if isValidId(guestId) && isValidGuest(incoming());
+      allow update: if isValidId(guestId) && isValidGuest(incoming()) && (
+        // Action 1: Guest confirming RSVP (strictly limits affected keys to confirmation details)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['confirmed', 'attending', 'guestsCount', 'notes', 'submittedAt'])) ||
+        // Action 2: Admin updating core guest properties
+        (incoming().diff(existing()).affectedKeys().hasOnly(['name', 'maxGuests', 'code', 'confirmed', 'attending', 'guestsCount', 'notes', 'submittedAt']))
+      );
+      allow delete: if isValidId(guestId);
+    }
+  }
+}
