@@ -1334,10 +1334,10 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
   };
 
   return (
-    <div className="relative w-full min-h-screen overflow-x-clip transition-colors duration-500 pb-16" style={containerStyle}>
-      {/* Elegant Fixed Stucco / Fine Paper Texture Overlay */}
+    <div className="relative w-full max-w-md mx-auto min-h-screen overflow-x-clip transition-colors duration-500 pb-16 shadow-2xl border-x border-stone-850/10" style={containerStyle}>
+      {/* Elegant Absolute Stucco / Fine Paper Texture Overlay */}
       <div 
-        className="fixed inset-0 pointer-events-none opacity-[0.06] z-10 mix-blend-multiply"
+        className="absolute inset-0 pointer-events-none opacity-[0.06] z-10 mix-blend-multiply"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='1' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='2'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)'/%3E%3C/svg%3E")`,
           backgroundRepeat: 'repeat',
@@ -1372,7 +1372,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
       <button
         onClick={togglePlay}
         disabled={audioError}
-        className={`fixed bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all z-40 ${
+        className={`fixed bottom-3 md:right-[calc(50%-224px+12px)] right-3 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all z-40 ${
           audioError 
             ? 'bg-stone-600/50 cursor-not-allowed border border-red-500/30' 
             : 'hover:scale-105 active:scale-95 cursor-pointer bg-[#753636]/90 backdrop-blur-sm'
@@ -1393,7 +1393,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
       {isEditorOpen && overlayOpened && config.sections.showOverlay && (
         <button
           onClick={() => setOverlayOpened(false)}
-          className="fixed top-6 right-6 bg-black/70 hover:bg-black text-white px-3 py-1.5 rounded-full text-xs font-medium z-40 flex items-center gap-1.5 shadow-md border border-white/20 transition-all"
+          className="fixed top-6 md:right-[calc(50%-224px+24px)] right-6 bg-black/70 hover:bg-black text-white px-3 py-1.5 rounded-full text-xs font-medium z-40 flex items-center gap-1.5 shadow-md border border-white/20 transition-all"
         >
           <Icons.RefreshCw className="w-3.5 h-3.5" /> Reabrir Portada
         </button>
@@ -1536,24 +1536,24 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
                 style={{ 
                   transform: `scale(${config.videoTextOverlayScale || 1.0})`,
                   transformOrigin: 'center center',
-                  textShadow: '0 2px 8px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3)'
+                  textShadow: '0 1px 3px rgba(255,255,255,0.85), 0 2px 8px rgba(255,255,255,0.7)'
                 }}
                 className="space-y-4 select-none"
               >
                 {/* Phrase (Quote) */}
                 <p 
-                  className="text-white/95 font-light tracking-wide text-[14px] md:text-[16px] italic leading-relaxed whitespace-pre-line"
+                  className="text-[#753636] font-light tracking-wide text-[14px] md:text-[16px] italic leading-relaxed whitespace-pre-line"
                   style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
                 >
                   {config.videoTextPhrase || "“ ¡El honor de amarnos,\nla alegría de compartirlo! ”"}
                 </p>
 
                 {/* Separator Line */}
-                <div className="w-12 h-[1.5px] bg-white/50 mx-auto"></div>
+                <div className="w-12 h-[1.5px] bg-[#753636]/55 mx-auto"></div>
 
                 {/* Couple Names */}
                 <h2 
-                  className="text-white text-3xl md:text-4.5xl font-normal tracking-wide drop-shadow-md"
+                  className="text-[#753636] text-3xl md:text-4.5xl font-normal tracking-wide"
                   style={{ fontFamily: "'Great Vibes', cursive, serif" }}
                 >
                   {config.videoTextNames || `${config.coupleName1} & ${config.coupleName2}`}
@@ -1572,44 +1572,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
 
       {/* ------ MINIMALIST WEDDING DETAILS / DESIGN ELEMENTS ------ */}
       <div className="w-full py-3 px-4 flex flex-col items-center justify-center text-center relative z-20" style={{ backgroundColor: config.theme.bg }}>
-        {/* Fine, delicate line art of interlocked rings and olive branches */}
-        <div className="text-[#b85c46] opacity-80 flex justify-center items-center gap-4 md:gap-6 scale-80 md:scale-95 my-0.5">
-          <svg width="45" height="45" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="transform -rotate-12">
-            {/* Elegant Botanical branch leaf left */}
-            <path d="M15,85 Q35,70 50,50 Q65,30 85,15" stroke="#b85c46" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M30,73 Q25,65 28,60" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M42,61 Q37,53 40,48" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M55,47 Q50,38 53,33" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M68,33 Q63,24 66,19" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            {/* Elegant Botanical branch leaf right */}
-            <path d="M15,85 Q35,70 50,50 Q65,30 85,15" stroke="#b85c46" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M30,73 Q38,71 40,76" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M42,61 Q50,59 52,64" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M55,47 Q63,45 65,50" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M68,33 Q76,31 78,36" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-          
-          <svg width="48" height="48" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="mx-1">
-            {/* Left Ring */}
-            <circle cx="45" cy="40" r="24" stroke="#b85c46" strokeWidth="1.8" className="opacity-90"/>
-            {/* Right Ring */}
-            <circle cx="75" cy="40" r="24" stroke="#b85c46" strokeWidth="1.8" className="opacity-90" strokeDasharray="3 1 1 1 1 1 1 1 3 40"/>
-            {/* Complete interlocking circle look by adding a small overlay arc */}
-            <path d="M63 24 A 24 24 0 0 1 75 16" stroke="#b85c46" strokeWidth="1.8" />
-            <path d="M69 32 A 24 24 0 0 1 73 35" stroke="#b85c46" strokeWidth="1.8" />
-            {/* Small diamond highlight */}
-            <path d="M45,13 L48,8 L45,3 L42,8 Z" fill="#b85c46" className="opacity-90" />
-          </svg>
-
-          <svg width="45" height="45" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="transform scale-x-[-1] rotate-12">
-            {/* Elegant Botanical branch leaf left */}
-            <path d="M15,85 Q35,70 50,50 Q65,30 85,15" stroke="#b85c46" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M30,73 Q25,65 28,60" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M42,61 Q37,53 40,48" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M55,47 Q50,38 53,33" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-            <path d="M68,33 Q63,24 66,19" stroke="#b85c46" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-        </div>
+        {/* Design elements removed per user feedback */}
       </div>
 
     {/* ------ ENVELOPE SCROLL INTERACTIVE SCENE ------ */}
@@ -2069,22 +2032,6 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
               <span className="text-[8px] uppercase tracking-wider text-stone-400 font-light">Espacio de Logo</span>
             </div>
           )}
-          
-          <div className="mt-4 flex flex-col items-center w-full">
-            <div className="w-12 h-[1px] bg-[#b85c46]/30 mb-4"></div>
-            <p className="text-[9px] uppercase tracking-[0.25em] text-stone-400 mb-1.5" style={{ fontFamily: bodyFont }}>
-              Nuestra Web de Bodas
-            </p>
-            <a 
-              href={config.weddingWebsiteUrl ? (config.weddingWebsiteUrl.startsWith('http') ? config.weddingWebsiteUrl : `https://${config.weddingWebsiteUrl}`) : '#'}
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-stone-700 hover:text-[#753636] font-light tracking-widest text-xs md:text-sm underline underline-offset-4 transition-colors"
-              style={{ fontFamily: titleFont }}
-            >
-              {config.weddingWebsiteUrl || ""}
-            </a>
-          </div>
         </div>
       </div>
 
