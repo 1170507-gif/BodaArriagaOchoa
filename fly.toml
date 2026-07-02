@@ -6,6 +6,9 @@
 
 primary_region = "mia"
 
+[env]
+  PORT = "8080"
+
 [build]
   # Uses the default Nixpacks/Buildpacks builder to automatically detect and build the Node.js project
 
