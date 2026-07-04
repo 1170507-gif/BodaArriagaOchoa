@@ -1540,7 +1540,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
                 className="select-none flex items-center justify-center"
               >
                 <img
-                  src="/images/imagen_07.png"
+                  src={getApiUrl('/images/imagen_07.png')}
                   alt="Capa de Imagen Original"
                   className="w-full max-w-[400px] h-auto pointer-events-none select-none transition-all"
                   referrerPolicy="no-referrer"
@@ -1617,7 +1617,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
             transform: 'translate(-50%, var(--letter-y)) scale(var(--letter-scale))',
             boxShadow: '0 18px 42px rgba(0,0,0,var(--letter-shadow))',
             zIndex: 'var(--letter-z, 3)' as any,
-            backgroundImage: 'url(/images/sobre_fondo.jpg)',
+            backgroundImage: `url(${getApiUrl('/images/sobre_fondo.jpg')})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
@@ -1731,7 +1731,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
                       </div>
                     ) : (
                       <img 
-                        src={p.url} 
+                        src={getApiUrl(p.url)} 
                         alt={p.caption || "Momento"} 
                         className="w-full h-full object-cover select-none pointer-events-none"
                         referrerPolicy="no-referrer"
@@ -2011,7 +2011,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
           {config.bottomLogoUrl ? (
             <div className="w-36 h-36 md:w-44 md:h-44 flex items-center justify-center transition-all duration-300 hover:scale-105">
               <img 
-                src={config.bottomLogoUrl} 
+                src={getApiUrl(config.bottomLogoUrl)} 
                 alt="Logo oficial" 
                 className="max-w-full max-h-full object-contain pointer-events-none select-none"
                 referrerPolicy="no-referrer"

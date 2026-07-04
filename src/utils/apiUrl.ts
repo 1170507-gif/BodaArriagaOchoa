@@ -5,6 +5,11 @@
  * which causes relative fetches or relative media src to fail on browsers like Safari.
  */
 export function getApiUrl(path: string): string {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+    return path;
+  }
+
   // Ensure the path starts with a single slash
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
