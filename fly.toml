@@ -29,3 +29,4 @@ primary_region = "ams"
 [[mounts]]
   source = "wedding_data"
   destination = "/data"
+  processes = ["app"]
