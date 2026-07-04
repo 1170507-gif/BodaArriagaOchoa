@@ -6,6 +6,7 @@ import { db, isFirebaseActive } from '../firebase';
 import { getApiUrl } from '../utils/apiUrl';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
+
 // Helper to convert Google Drive share link into streamable content
 const getStreamableVideoUrl = (url: string) => {
   if (!url) return '';
@@ -126,8 +127,108 @@ export default function InvitationPreview({
   }, [config.locationButtonPosition]);
 
   const videoHeroRef = useRef<HTMLDivElement>(null);
-  const [videoTextOverlayPos, setVideoTextOverlayPos] = useState({ x: 50, y: 25 });
-  const videoTextOverlayPosRef = useRef({ x: 50, y: 25 });
+const [videoTextOverlayPos, setVideoTextOverlayPos] = useState({ x: 50, y: 25 });
+const videoTextOverlayPosRef = useRef({ x: 50, y: 25 });
+
+// Draggable / resizable couple photo layer on top of the opening video
+const [coupleOverlayPos, setCoupleOverlayPos] = useState({ x: 50, y: 65 });
+const coupleOverlayPosRef = useRef({ x: 50, y: 65 });
+const [coupleOverlayScale, setCoupleOverlayScale] = useState(1);
+const coupleOverlayScaleRef = useRef(1);
+
+useEffect(() => {
+  const x = config.coupleOverlayX !== undefined ? config.coupleOverlayX : 50;
+  const y = config.coupleOverlayY !== undefined ? config.coupleOverlayY : 65;
+  const scale = config.coupleOverlayScale !== undefined ? config.coupleOverlayScale : 1;
+  setCoupleOverlayPos({ x, y });
+  coupleOverlayPosRef.current = { x, y };
+  setCoupleOverlayScale(scale);
+  coupleOverlayScaleRef.current = scale;
+}, [config.coupleOverlayX, config.coupleOverlayY, config.coupleOverlayScale]);
+
+const startDraggingCoupleOverlay = (e: React.MouseEvent | React.TouchEvent) => {
+  if (!isEditorOpen) return;
+
+  const target = e.target as HTMLElement;
+  if (
+    target.closest('button') ||
+    target.closest('input') ||
+    target.closest('select') ||
+    target.closest('.pointer-events-auto')
+  ) {
+    return;
+  }
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (!videoHeroRef.current) return;
+  const rect = videoHeroRef.current.getBoundingClientRect();
+
+  const handleCoupleDragMove = (clientX: number, clientY: number) => {
+    let x = ((clientX - rect.left) / rect.width) * 100;
+    let y = ((clientY - rect.top) / rect.height) * 100;
+    x = Math.max(5, Math.min(95, x));
+    y = Math.max(5, Math.min(95, y));
+
+    const newPos = { x, y };
+    setCoupleOverlayPos(newPos);
+    coupleOverlayPosRef.current = newPos;
+  };
+
+  const onMouseMove = (ev: MouseEvent) => {
+    handleCoupleDragMove(ev.clientX, ev.clientY);
+  };
+
+  const onTouchMove = (ev: TouchEvent) => {
+    if (ev.cancelable) ev.preventDefault();
+    if (ev.touches.length > 0) {
+      handleCoupleDragMove(ev.touches[0].clientX, ev.touches[0].clientY);
+    }
+  };
+
+  const commitPosition = () => {
+    if (onConfigChange) {
+      onConfigChange({
+        ...config,
+        coupleOverlayX: Math.round(coupleOverlayPosRef.current.x),
+        coupleOverlayY: Math.round(coupleOverlayPosRef.current.y),
+      });
+    }
+  };
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    commitPosition();
+  };
+
+  const onTouchEnd = () => {
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+    commitPosition();
+  };
+
+  if ('touches' in e) {
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+  } else {
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+};
+
+const adjustCoupleOverlayScale = (delta: number) => {
+  const next = Math.max(0.4, Math.min(2.2, Math.round((coupleOverlayScaleRef.current + delta) * 100) / 100));
+  coupleOverlayScaleRef.current = next;
+  setCoupleOverlayScale(next);
+  if (onConfigChange) {
+    onConfigChange({
+      ...config,
+      coupleOverlayScale: next,
+    });
+  }
+};
 
   useEffect(() => {
     const x = config.videoTextOverlayX !== undefined ? config.videoTextOverlayX : 50;
@@ -1554,8 +1655,57 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
               )}
             </div>
           )}
+
+          {/* Foto de la pareja — capa movible y redimensionable sobre el video */}
+          {config.showCoupleOverlay !== false && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${coupleOverlayPos.x}%`,
+                top: `${coupleOverlayPos.y}%`,
+                transform: `translate(-50%, -50%) scale(${coupleOverlayScale})`,
+                transformOrigin: 'center center',
+                pointerEvents: isEditorOpen ? 'auto' : 'none',
+                cursor: isEditorOpen ? 'move' : 'default',
+                zIndex: 25,
+              }}
+              onMouseDown={isEditorOpen ? startDraggingCoupleOverlay : undefined}
+              onTouchStart={isEditorOpen ? startDraggingCoupleOverlay : undefined}
+              className={`transition-transform duration-150 ${isEditorOpen ? 'hover:outline hover:outline-2 hover:outline-dashed hover:outline-amber-400/80 rounded' : ''}`}
+            >
+              <img
+                src={config.images.coupleOverlay || getApiUrl('/images/pareja_overlay.png')}
+                alt="Los novios"
+                className="w-[260px] max-w-[70vw] h-auto pointer-events-none select-none"
+                referrerPolicy="no-referrer"
+              />
+
+              {isEditorOpen && (
+                <div className="pointer-events-auto absolute -bottom-9 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/75 backdrop-blur-sm rounded-full px-2 py-1 shadow-md whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => adjustCoupleOverlayScale(-0.1)}
+                    className="w-6 h-6 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white text-sm leading-none"
+                    aria-label="Reducir tamaño"
+                  >
+                    –
+                  </button>
+                  <span className="text-white text-[9px] uppercase tracking-widest px-1">Tamaño</span>
+                  <button
+                    type="button"
+                    onClick={() => adjustCoupleOverlayScale(0.1)}
+                    className="w-6 h-6 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white text-sm leading-none"
+                    aria-label="Aumentar tamaño"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
+  
 
       {/* ------ MINIMALIST WEDDING DETAILS / DESIGN ELEMENTS ------ */}
       <div className="w-full py-3 px-4 flex flex-col items-center justify-center text-center relative z-20" style={{ backgroundColor: config.theme.bg }}>
