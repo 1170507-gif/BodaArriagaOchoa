@@ -316,8 +316,17 @@ async function startServer() {
     // Prevent directory traversal attacks
     const safeFilename = path.basename(filename);
     const filePath = path.join(uploadImagesDir, safeFilename);
+    
+    // Fallback paths to guarantee static default assets serve correctly
+    const publicFallback = path.join(process.cwd(), "public", "images", safeFilename);
+    const distFallback = path.join(process.cwd(), "dist", "images", safeFilename);
+
     if (fs.existsSync(filePath)) {
       res.sendFile(filePath);
+    } else if (fs.existsSync(publicFallback)) {
+      res.sendFile(publicFallback);
+    } else if (fs.existsSync(distFallback)) {
+      res.sendFile(distFallback);
     } else {
       res.status(404).send("Image not found");
     }

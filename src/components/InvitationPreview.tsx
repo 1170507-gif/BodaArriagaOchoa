@@ -1617,7 +1617,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
             transform: 'translate(-50%, var(--letter-y)) scale(var(--letter-scale))',
             boxShadow: '0 18px 42px rgba(0,0,0,var(--letter-shadow))',
             zIndex: 'var(--letter-z, 3)' as any,
-            backgroundImage: 'url("/images/sobre_fondo.jpg")',
+            backgroundImage: `url("${getApiUrl('/images/sobre_fondo.jpg')}")`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
