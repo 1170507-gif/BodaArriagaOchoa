@@ -1674,7 +1674,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
               className={`transition-transform duration-150 ${isEditorOpen ? 'hover:outline hover:outline-2 hover:outline-dashed hover:outline-amber-400/80 rounded' : ''}`}
             >
               <img
-                src={config.images.coupleOverlay || getApiUrl('/images/pareja_overlay.png')}
+                src={config.images.coupleOverlay || getApiUrl('/images/pareja_overlay.jpeg')}
                 alt="Los novios"
                 className="w-[260px] max-w-[70vw] h-auto pointer-events-none select-none"
                 referrerPolicy="no-referrer"
