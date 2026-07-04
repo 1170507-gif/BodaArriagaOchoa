@@ -4,7 +4,7 @@
 # If deploying via GitHub Actions, make sure to set your app name here.
 # app = "your-app-name"
 
-primary_region = "mia"
+primary_region = "ams"
 
 [env]
   PORT = "8080"
