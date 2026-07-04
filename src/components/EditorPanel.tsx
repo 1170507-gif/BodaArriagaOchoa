@@ -910,7 +910,7 @@ export default function EditorPanel({
 
                     <div className="border-t border-stone-800/60 pt-3 mt-2 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="block text-[11px] font-medium text-stone-300">Mostrar Texto sobre el Video</span>
+                        <span className="block text-[11px] font-medium text-stone-300">Mostrar Capa de Imagen Original sobre el Video</span>
                         <input
                           type="checkbox"
                           checked={config.showVideoTextOverlay !== false}
@@ -921,27 +921,9 @@ export default function EditorPanel({
 
                       {config.showVideoTextOverlay !== false && (
                         <div className="space-y-3 bg-stone-900/40 p-2.5 rounded border border-stone-800/60">
-                          <div>
-                            <label className="block text-[10px] text-stone-400 mb-1">Frase / Cita (Cielo)</label>
-                            <textarea
-                              value={config.videoTextPhrase || ''}
-                              onChange={(e) => updateConfigField('videoTextPhrase', e.target.value)}
-                              rows={2}
-                              className="w-full bg-stone-800 border border-stone-700 rounded px-2.5 py-1.5 text-stone-100 outline-none focus:border-amber-400 text-xs resize-none"
-                              placeholder="Escribe la frase de introducción de la boda..."
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] text-stone-400 mb-1">Nombres de los Novios</label>
-                            <input
-                              type="text"
-                              value={config.videoTextNames || ''}
-                              onChange={(e) => updateConfigField('videoTextNames', e.target.value)}
-                              className="w-full bg-stone-800 border border-stone-700 rounded px-2.5 py-1.5 text-stone-100 outline-none focus:border-amber-400 text-xs"
-                              placeholder="Ej: Alejandro & Alejandra"
-                            />
-                          </div>
+                          <p className="text-[10px] text-stone-400 leading-relaxed">
+                            Se muestra el PNG transparente original <strong>"imagen_07.png"</strong> como una capa directamente sobre el video. Puedes ajustar su posición y tamaño con los controles de abajo o arrastrarlo directamente sobre la invitación.
+                          </p>
 
                           <div>
                             <label className="block text-[10px] text-stone-400 mb-1">Posición Vertical: {config.videoTextOverlayY ?? 25}%</label>
@@ -954,12 +936,12 @@ export default function EditorPanel({
                               className="w-full accent-amber-400"
                             />
                             <p className="text-[9px] text-stone-500 mt-0.5 leading-normal">
-                              Desliza para mover verticalmente hacia el cielo o centro del video. ¡También puedes arrastrar el texto directamente en la pantalla de la invitación!
+                              Desliza para mover verticalmente hacia el cielo o centro del video. ¡También puedes arrastrar la imagen directamente en la pantalla de la invitación!
                             </p>
                           </div>
 
                           <div>
-                            <label className="block text-[10px] text-stone-400 mb-1">Tamaño del Texto (Escala): {config.videoTextOverlayScale ?? 1.0}x</label>
+                            <label className="block text-[10px] text-stone-400 mb-1">Tamaño de la Imagen (Escala): {config.videoTextOverlayScale ?? 1.0}x</label>
                             <input
                               type="range"
                               min="0.6"

@@ -7,6 +7,52 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
+  // Persistent storage directory support for Fly.io and local development
+  const STORAGE_DIR = process.env.DATA_DIR || (fs.existsSync("/data") ? "/data" : process.cwd());
+  const uploadImagesDir = STORAGE_DIR === process.cwd()
+    ? path.join(process.cwd(), "public", "images")
+    : path.join(STORAGE_DIR, "images");
+
+  // Ensure directories exist
+  if (!fs.existsSync(uploadImagesDir)) {
+    fs.mkdirSync(uploadImagesDir, { recursive: true });
+  }
+
+  // Copy default assets to separate storage if initialized for the first time
+  if (STORAGE_DIR !== process.cwd()) {
+    console.log(`Persistent storage detected at: ${STORAGE_DIR}. Initializing assets...`);
+    
+    // Copy images
+    const localImagesDir = path.join(process.cwd(), "public", "images");
+    if (fs.existsSync(localImagesDir)) {
+      try {
+        const files = fs.readdirSync(localImagesDir);
+        files.forEach((file) => {
+          const src = path.join(localImagesDir, file);
+          const dest = path.join(uploadImagesDir, file);
+          if (!fs.existsSync(dest)) {
+            fs.copyFileSync(src, dest);
+            console.log(`Copied default image ${file} to storage`);
+          }
+        });
+      } catch (err) {
+        console.error("Error copying default images to storage:", err);
+      }
+    }
+
+    // Copy audio
+    const localAudio = path.join(process.cwd(), "wedding_audio.mp3");
+    const destAudio = path.join(STORAGE_DIR, "wedding_audio.mp3");
+    if (fs.existsSync(localAudio) && !fs.existsSync(destAudio)) {
+      try {
+        fs.copyFileSync(localAudio, destAudio);
+        console.log("Copied default wedding_audio.mp3 to storage");
+      } catch (err) {
+        console.error("Error copying default audio to storage:", err);
+      }
+    }
+  }
+
   // Enable CORS for all incoming requests (crucial for iframe preview support on some browsers)
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -22,7 +68,7 @@ async function startServer() {
 
   // Serve uploaded wedding video with support for Range requests
   app.get("/video/wedding.mp4", (req, res) => {
-    const filePath = path.join(process.cwd(), "wedding_video.mp4");
+    const filePath = path.join(STORAGE_DIR, "wedding_video.mp4");
     if (fs.existsSync(filePath)) {
       res.sendFile(filePath);
     } else {
@@ -32,7 +78,7 @@ async function startServer() {
 
   // Serve uploaded wedding audio with support for Range requests
   app.get("/audio/wedding.mp3", (req, res) => {
-    const filePath = path.join(process.cwd(), "wedding_audio.mp3");
+    const filePath = path.join(STORAGE_DIR, "wedding_audio.mp3");
     if (fs.existsSync(filePath)) {
       res.sendFile(filePath);
     } else {
@@ -46,7 +92,7 @@ async function startServer() {
     "/api/upload-video",
     (req, res) => {
       try {
-        const filePath = path.join(process.cwd(), "wedding_video.mp4");
+        const filePath = path.join(STORAGE_DIR, "wedding_video.mp4");
         console.log(`Starting chunk-by-chunk streaming upload of video to ${filePath}`);
         
         const writeStream = fs.createWriteStream(filePath);
@@ -79,7 +125,7 @@ async function startServer() {
     "/api/upload-audio",
     (req, res) => {
       try {
-        const filePath = path.join(process.cwd(), "wedding_audio.mp3");
+        const filePath = path.join(STORAGE_DIR, "wedding_audio.mp3");
         console.log(`Starting chunk-by-chunk streaming upload of audio to ${filePath}`);
         
         const writeStream = fs.createWriteStream(filePath);
@@ -108,24 +154,19 @@ async function startServer() {
 
   // Check if server-side video exists
   app.get("/api/video-status", (req, res) => {
-    const filePath = path.join(process.cwd(), "wedding_video.mp4");
+    const filePath = path.join(STORAGE_DIR, "wedding_video.mp4");
     res.json({ exists: fs.existsSync(filePath) });
   });
 
   // Check if server-side audio exists
   app.get("/api/audio-status", (req, res) => {
-    const filePath = path.join(process.cwd(), "wedding_audio.mp3");
+    const filePath = path.join(STORAGE_DIR, "wedding_audio.mp3");
     res.json({ exists: fs.existsSync(filePath) });
   });
 
   // Check if original .webp files exist (scans the directory dynamically to support any number of images)
   app.get("/api/images-status", (req, res) => {
     try {
-      const uploadImagesDir = path.join(process.cwd(), "public", "images");
-      if (!fs.existsSync(uploadImagesDir)) {
-        fs.mkdirSync(uploadImagesDir, { recursive: true });
-      }
-      
       const files = fs.readdirSync(uploadImagesDir);
       const status: Record<string, boolean> = {};
       
@@ -149,12 +190,6 @@ async function startServer() {
       res.status(500).json({ error: "Failed to scan images" });
     }
   });
-
-  // Create public/images directory if it doesn't exist
-  const uploadImagesDir = path.join(process.cwd(), "public", "images");
-  if (!fs.existsSync(uploadImagesDir)) {
-    fs.mkdirSync(uploadImagesDir, { recursive: true });
-  }
 
   // Serve uploaded images (fallback for static or dynamic routes)
   app.get("/images/:filename", (req, res) => {

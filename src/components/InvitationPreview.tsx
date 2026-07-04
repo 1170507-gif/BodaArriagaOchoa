@@ -1536,33 +1536,20 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
                 style={{ 
                   transform: `scale(${config.videoTextOverlayScale || 1.0})`,
                   transformOrigin: 'center center',
-                  textShadow: '0 1px 3px rgba(255,255,255,0.85), 0 2px 8px rgba(255,255,255,0.7)'
                 }}
-                className="space-y-4 select-none"
+                className="select-none flex items-center justify-center"
               >
-                {/* Phrase (Quote) */}
-                <p 
-                  className="text-[#753636] font-light tracking-wide text-[14px] md:text-[16px] italic leading-relaxed whitespace-pre-line"
-                  style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
-                >
-                  {config.videoTextPhrase || "“ ¡El honor de amarnos,\nla alegría de compartirlo! ”"}
-                </p>
-
-                {/* Separator Line */}
-                <div className="w-12 h-[1.5px] bg-[#753636]/55 mx-auto"></div>
-
-                {/* Couple Names */}
-                <h2 
-                  className="text-[#753636] text-3xl md:text-4.5xl font-normal tracking-wide"
-                  style={{ fontFamily: "'Great Vibes', cursive, serif" }}
-                >
-                  {config.videoTextNames || `${config.coupleName1} & ${config.coupleName2}`}
-                </h2>
+                <img
+                  src="/images/imagen_07.png"
+                  alt="Capa de Imagen Original"
+                  className="w-full max-w-[400px] h-auto pointer-events-none select-none transition-all"
+                  referrerPolicy="no-referrer"
+                />
               </div>
 
               {isEditorOpen && (
                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap">
-                  Arrastrar Texto (Cielo)
+                  Arrastrar Capa Original (Cielo)
                 </div>
               )}
             </div>
@@ -1625,16 +1612,20 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
 
         {/* Letter — top/width/alto ahora en % del sobre, ya no se sale por abajo */}
         <article 
-          className="letter letter-resp absolute left-[50%] top-[35.5%] w-[61.8%] min-h-[66%] origin-top bg-white rounded-lg overflow-hidden will-change-transform"
+          className="letter letter-resp absolute left-[50%] top-[35.5%] w-[61.8%] min-h-[66%] origin-top rounded-lg overflow-hidden will-change-transform"
           style={{
             transform: 'translate(-50%, var(--letter-y)) scale(var(--letter-scale))',
             boxShadow: '0 18px 42px rgba(0,0,0,var(--letter-shadow))',
             zIndex: 'var(--letter-z, 3)' as any,
+            backgroundImage: 'url(/images/sobre_fondo.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
           }}
         >
-          {/* Subtle paper finish overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-white/95 to-white pointer-events-none z-1" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.02),transparent_45%)] pointer-events-none z-1" />
+          {/* Subtle paper finish overlay (semi-transparent to preserve the watercolor and leaf sketches) */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none z-1" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.01),transparent_45%)] pointer-events-none z-1" />
           
           <div className="letter-inner letter-inner-resp relative z-10 px-6 py-8 text-center flex flex-col justify-between min-h-full">
             <div>
