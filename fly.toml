@@ -2,7 +2,7 @@
 
 # Note: The app name will be automatically populated by Fly.io when you run 'fly launch' or 'fly deploy'
 # If deploying via GitHub Actions, make sure to set your app name here.
-# app = "your-app-name"
+app = "bodaarriagaochoa"
 
 primary_region = "ams"
 
