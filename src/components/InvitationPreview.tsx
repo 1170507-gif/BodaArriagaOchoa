@@ -1339,7 +1339,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
       <div 
         className="absolute inset-0 pointer-events-none opacity-[0.06] z-10 mix-blend-multiply"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='1' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='2'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)'/%3E%3C/svg%3E")`,
+          backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxODAnIGhlaWdodD0nMTgwJz48ZmlsdGVyIGlkPSdwYXBlcic+PGZlVHVyYnVsZW5jZSB0eXBlPSdmcmFjdGFsTm9pc2UnIGJhc2VGcmVxdWVuY3k9JzAuMDQnIG51bU9jdGF2ZXM9JzEnIHJlc3VsdD0nbm9pc2UnLz48ZmVEaWZmdXNlTGlnaHRpbmcgaW49J25vaXNlJyBsaWdodGluZy1jb2xvcj0nI2ZmZicgc3VyZmFjZVNjYWxlPScyJz48ZmVEaXN0YW50TGlnaHQgYXppbXV0aD0nNDUnIGVsZXZhdGlvbj0nNjAnLz48L2ZlRGlmZnVzZUxpZ2h0aW5nPjwvZmlsdGVyPjxyZWN0IHdpZHRoPScxMDAlJyBoZWlnaHQ9JzEwMCUnIGZpbHRlcj0ndXJsKCNwYXBlciknLz48L3N2Zz4=")',
           backgroundRepeat: 'repeat',
         }}
       />
@@ -1617,7 +1617,7 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
             transform: 'translate(-50%, var(--letter-y)) scale(var(--letter-scale))',
             boxShadow: '0 18px 42px rgba(0,0,0,var(--letter-shadow))',
             zIndex: 'var(--letter-z, 3)' as any,
-            backgroundImage: `url(${getApiUrl('/images/sobre_fondo.jpg')})`,
+            backgroundImage: 'url("/images/sobre_fondo.jpg")',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
