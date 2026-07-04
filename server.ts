@@ -18,40 +18,129 @@ async function startServer() {
     fs.mkdirSync(uploadImagesDir, { recursive: true });
   }
 
-  // Copy default assets to separate storage if initialized for the first time
-  if (STORAGE_DIR !== process.cwd()) {
-    console.log(`Persistent storage detected at: ${STORAGE_DIR}. Initializing assets...`);
+  // Robust asset synchronization function
+  function syncDefaultAssets() {
+    const report: Array<{ file: string; action: string; size?: number; error?: string }> = [];
     
-    // Copy images
+    if (STORAGE_DIR === process.cwd()) {
+      return { msg: "Running in development mode with local directory. No sync needed.", report };
+    }
+
+    // Ensure uploadImagesDir exists
+    if (!fs.existsSync(uploadImagesDir)) {
+      fs.mkdirSync(uploadImagesDir, { recursive: true });
+    }
+
     const localImagesDir = path.join(process.cwd(), "public", "images");
     if (fs.existsSync(localImagesDir)) {
       try {
         const files = fs.readdirSync(localImagesDir);
         files.forEach((file) => {
+          if (file === ".gitkeep") return;
           const src = path.join(localImagesDir, file);
           const dest = path.join(uploadImagesDir, file);
+          
+          let shouldCopy = false;
+          let reason = "";
+
           if (!fs.existsSync(dest)) {
-            fs.copyFileSync(src, dest);
-            console.log(`Copied default image ${file} to storage`);
+            shouldCopy = true;
+            reason = "missing";
+          } else {
+            try {
+              const srcStat = fs.statSync(src);
+              const destStat = fs.statSync(dest);
+              if (destStat.size === 0) {
+                shouldCopy = true;
+                reason = "zero-byte-file";
+              } else if (destStat.size !== srcStat.size) {
+                shouldCopy = true;
+                reason = `size-mismatch (src: ${srcStat.size}, dest: ${destStat.size})`;
+              }
+            } catch (e) {
+              shouldCopy = true;
+              reason = "stat-check-failed";
+            }
+          }
+
+          if (shouldCopy) {
+            try {
+              fs.copyFileSync(src, dest);
+              const copiedSize = fs.statSync(dest).size;
+              console.log(`[AssetSync] Successfully copied default image ${file} to storage: ${reason}`);
+              report.push({ file, action: `copied (${reason})`, size: copiedSize });
+            } catch (err: any) {
+              console.error(`[AssetSync] Error copying ${file} to storage:`, err);
+              report.push({ file, action: "failed", error: err.message || String(err) });
+            }
+          } else {
+            const size = fs.statSync(dest).size;
+            report.push({ file, action: "already-exists", size });
           }
         });
-      } catch (err) {
-        console.error("Error copying default images to storage:", err);
+      } catch (err: any) {
+        console.error("[AssetSync] Error reading local images directory:", err);
+        return { error: `Failed to read local images directory: ${err.message}`, report };
+      }
+    } else {
+      report.push({ file: "localImagesDir", action: "missing", error: "public/images directory not found" });
+    }
+
+    // Try to copy wedding_audio.mp3 if we can find it anywhere (e.g., local root or public root)
+    const possibleAudioSources = [
+      path.join(process.cwd(), "wedding_audio.mp3"),
+      path.join(process.cwd(), "public", "wedding_audio.mp3")
+    ];
+    let audioSrc = "";
+    for (const src of possibleAudioSources) {
+      if (fs.existsSync(src)) {
+        audioSrc = src;
+        break;
       }
     }
 
-    // Copy audio
-    const localAudio = path.join(process.cwd(), "wedding_audio.mp3");
     const destAudio = path.join(STORAGE_DIR, "wedding_audio.mp3");
-    if (fs.existsSync(localAudio) && !fs.existsSync(destAudio)) {
-      try {
-        fs.copyFileSync(localAudio, destAudio);
-        console.log("Copied default wedding_audio.mp3 to storage");
-      } catch (err) {
-        console.error("Error copying default audio to storage:", err);
+    if (audioSrc) {
+      let shouldCopyAudio = false;
+      let reasonAudio = "";
+
+      if (!fs.existsSync(destAudio)) {
+        shouldCopyAudio = true;
+        reasonAudio = "missing";
+      } else {
+        const srcStat = fs.statSync(audioSrc);
+        const destStat = fs.statSync(destAudio);
+        if (destStat.size === 0) {
+          shouldCopyAudio = true;
+          reasonAudio = "zero-byte";
+        } else if (destStat.size !== srcStat.size) {
+          shouldCopyAudio = true;
+          reasonAudio = "size-mismatch";
+        }
       }
+
+      if (shouldCopyAudio) {
+        try {
+          fs.copyFileSync(audioSrc, destAudio);
+          console.log(`[AssetSync] Successfully copied default wedding_audio.mp3 to storage: ${reasonAudio}`);
+          report.push({ file: "wedding_audio.mp3", action: `copied (${reasonAudio})`, size: fs.statSync(destAudio).size });
+        } catch (err: any) {
+          console.error("[AssetSync] Error copying audio to storage:", err);
+          report.push({ file: "wedding_audio.mp3", action: "failed", error: err.message || String(err) });
+        }
+      } else {
+        report.push({ file: "wedding_audio.mp3", action: "already-exists", size: fs.statSync(destAudio).size });
+      }
+    } else {
+      report.push({ file: "wedding_audio.mp3", action: "not-found-locally", error: "No local audio source available to copy." });
     }
+
+    return { msg: "Synchronization completed.", report };
   }
+
+  // Run initial synchronization on startup
+  const initialSyncReport = syncDefaultAssets();
+  console.log("Initial Asset Sync Report:", JSON.stringify(initialSyncReport, null, 2));
 
   // Enable CORS for all incoming requests (crucial for iframe preview support on some browsers)
   app.use((req, res, next) => {
@@ -162,6 +251,36 @@ async function startServer() {
   app.get("/api/audio-status", (req, res) => {
     const filePath = path.join(STORAGE_DIR, "wedding_audio.mp3");
     res.json({ exists: fs.existsSync(filePath) });
+  });
+
+  // Diagnostic and forced re-synchronization endpoint
+  app.get("/api/diagnose", (req, res) => {
+    try {
+      const syncReport = syncDefaultAssets();
+      
+      const localImagesDir = path.join(process.cwd(), "public", "images");
+      const localImages = fs.existsSync(localImagesDir) ? fs.readdirSync(localImagesDir) : [];
+      const volumeImages = fs.existsSync(uploadImagesDir) ? fs.readdirSync(uploadImagesDir) : [];
+
+      res.json({
+        success: true,
+        STORAGE_DIR,
+        uploadImagesDir,
+        env: {
+          NODE_ENV: process.env.NODE_ENV,
+          DATA_DIR: process.env.DATA_DIR,
+          PORT: process.env.PORT,
+        },
+        localImagesDirContents: localImages,
+        volumeImagesDirContents: volumeImages,
+        syncReport
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message || String(err)
+      });
+    }
   });
 
   // Check if original .webp files exist (scans the directory dynamically to support any number of images)
