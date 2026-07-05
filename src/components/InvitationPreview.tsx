@@ -1794,11 +1794,6 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
       )}
   
 
-      {/* ------ MINIMALIST WEDDING DETAILS / DESIGN ELEMENTS ------ */}
-      <div className="w-full py-3 px-4 flex flex-col items-center justify-center text-center relative z-20" style={{ backgroundColor: config.theme.bg }}>
-        {/* Design elements removed per user feedback */}
-      </div>
-
     {/* ------ ENVELOPE SCROLL INTERACTIVE SCENE ------ */}
 <section 
   ref={envelopeSceneRef} 
