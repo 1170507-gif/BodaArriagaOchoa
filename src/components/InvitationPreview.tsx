@@ -1805,6 +1805,14 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
   className="scene relative w-full -mt-2"
   style={{ height: '112vh' }}
 >
+{/* Decoración floral de fondo — capa fija detrás del sobre, no afecta su animación */}
+<img
+  src={getApiUrl('/images/envelope_floral_decoration.png')}
+  alt=""
+  className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+  referrerPolicy="no-referrer"
+/>
+
   <div className="sticky top-[8vh] h-[84vh] w-full flex items-center justify-center overflow-hidden z-20">
     <div className="stage w-full h-full flex items-center justify-center p-4">
       
