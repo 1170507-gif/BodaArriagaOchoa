@@ -123,6 +123,19 @@ export default function EditorPanel({
     updateConfigField('polaroids', updated);
   };
 
+  const handlePolaroidMove = (id: string, direction: 'up' | 'down') => {
+    const currentPolaroids = config.polaroids || [];
+    const index = currentPolaroids.findIndex(p => p.id === id);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentPolaroids.length) return;
+
+    const updated = [...currentPolaroids];
+    [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
+    updateConfigField('polaroids', updated);
+  };
+
   const renderImageUploader = (fieldPath: string, uploadType: string, label: string) => {
     const isUploading = uploadingField === fieldPath;
     const value = fieldPath.split('.').reduce((acc, part) => acc?.[part], config as any) || '';
@@ -998,8 +1011,26 @@ export default function EditorPanel({
                 </p>
 
                 <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
-                  {(config.polaroids || []).map((p) => (
+                  {(config.polaroids || []).map((p, index) => (
                     <div key={p.id} className="flex gap-2 items-center bg-stone-900/40 p-2 rounded border border-stone-800">
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <button
+                          onClick={() => handlePolaroidMove(p.id, 'up')}
+                          disabled={index === 0}
+                          className="p-0.5 text-stone-500 hover:text-amber-400 hover:bg-stone-800 rounded transition-colors disabled:opacity-20 disabled:hover:text-stone-500 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                          title="Mover arriba"
+                        >
+                          <Icons.ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handlePolaroidMove(p.id, 'down')}
+                          disabled={index === (config.polaroids || []).length - 1}
+                          className="p-0.5 text-stone-500 hover:text-amber-400 hover:bg-stone-800 rounded transition-colors disabled:opacity-20 disabled:hover:text-stone-500 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                          title="Mover abajo"
+                        >
+                          <Icons.ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                       <div className="w-10 h-10 rounded overflow-hidden shrink-0 bg-stone-850">
                         <img src={p.url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       </div>
