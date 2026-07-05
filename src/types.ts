@@ -61,7 +61,7 @@ export interface WeddingConfig {
     rsvpHeader?: string;
     floralDivider?: string;
   };
-  polaroids?: { id: string; url: string; caption?: string }[];
+  polaroids?: { id: string; url: string; caption?: string; posX?: number; posY?: number; zoom?: number }[];
   blurredPhotoUrl?: string;
   bottomLogoUrl?: string;
   weddingWebsiteUrl?: string;

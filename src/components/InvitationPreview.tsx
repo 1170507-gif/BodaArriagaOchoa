@@ -230,6 +230,93 @@ const adjustCoupleOverlayScale = (delta: number) => {
   }
 };
 
+// Ajuste de encuadre (pan) y zoom de cada foto dentro de su marco Polaroid
+const [polaroidLivePos, setPolaroidLivePos] = useState<Record<string, { x: number; y: number }>>({});
+
+const startDraggingPolaroid = (e: React.MouseEvent | React.TouchEvent, polaroidId: string) => {
+  if (!isEditorOpen) return;
+
+  const target = e.target as HTMLElement;
+  if (target.closest('button')) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const container = e.currentTarget as HTMLElement;
+  const rect = container.getBoundingClientRect();
+
+  const current = (config.polaroids || []).find(pp => pp.id === polaroidId);
+  const startX = current?.posX !== undefined ? current.posX : 50;
+  const startY = current?.posY !== undefined ? current.posY : 50;
+
+  const initialPoint = 'touches' in e
+    ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    : { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY };
+
+  let latest = { x: startX, y: startY };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    const dx = ((clientX - initialPoint.x) / rect.width) * 100;
+    const dy = ((clientY - initialPoint.y) / rect.height) * 100;
+    // Arrastrar la foto hacia la derecha/abajo revela más del lado izquierdo/arriba
+    const x = Math.max(0, Math.min(100, startX - dx));
+    const y = Math.max(0, Math.min(100, startY - dy));
+    latest = { x, y };
+    setPolaroidLivePos(prev => ({ ...prev, [polaroidId]: latest }));
+  };
+
+  const onMouseMove = (ev: MouseEvent) => {
+    handleMove(ev.clientX, ev.clientY);
+  };
+
+  const onTouchMove = (ev: TouchEvent) => {
+    if (ev.cancelable) ev.preventDefault();
+    if (ev.touches.length > 0) {
+      handleMove(ev.touches[0].clientX, ev.touches[0].clientY);
+    }
+  };
+
+  const commitPosition = () => {
+    if (onConfigChange) {
+      const updated = (config.polaroids || []).map(pp =>
+        pp.id === polaroidId ? { ...pp, posX: Math.round(latest.x), posY: Math.round(latest.y) } : pp
+      );
+      onConfigChange({ ...config, polaroids: updated });
+    }
+  };
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    commitPosition();
+  };
+
+  const onTouchEnd = () => {
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+    commitPosition();
+  };
+
+  if ('touches' in e) {
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+  } else {
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+};
+
+const adjustPolaroidZoom = (polaroidId: string, delta: number) => {
+  if (!onConfigChange) return;
+  const current = (config.polaroids || []).find(pp => pp.id === polaroidId);
+  const currentZoom = current?.zoom !== undefined ? current.zoom : 1;
+  const next = Math.max(1, Math.min(2.5, Math.round((currentZoom + delta) * 100) / 100));
+  const updated = (config.polaroids || []).map(pp =>
+    pp.id === polaroidId ? { ...pp, zoom: next } : pp
+  );
+  onConfigChange({ ...config, polaroids: updated });
+};
+
   useEffect(() => {
     const x = config.videoTextOverlayX !== undefined ? config.videoTextOverlayX : 50;
     const y = config.videoTextOverlayY !== undefined ? config.videoTextOverlayY : 25;
@@ -1873,19 +1960,56 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
                   className={`flex-shrink-0 w-[125px] bg-[#faf9f6] p-2 pb-5 rounded-[1px] shadow-[0_5px_15px_rgba(0,0,0,0.06),0_1.5px_4px_rgba(0,0,0,0.04)] border border-stone-200/40 snap-center transform hover:scale-105 hover:-rotate-1 hover:shadow-[0_12px_24px_rgba(0,0,0,0.09)] transition-all duration-300 ${tilt}`}
                 >
                   {/* Photo container (Square inside a portrait polaroid) */}
-                  <div className="w-full aspect-square overflow-hidden bg-stone-100/60 rounded-[1px] mb-2 relative shadow-[inset_0_1px_3px_rgba(0,0,0,0.12)] border border-stone-200/40">
+                  <div
+                    className={`w-full aspect-square overflow-hidden bg-stone-100/60 rounded-[1px] mb-2 relative shadow-[inset_0_1px_3px_rgba(0,0,0,0.12)] border border-stone-200/40 ${isEditorOpen && !isPlaceholder ? 'cursor-move' : ''}`}
+                    onMouseDown={isEditorOpen && !isPlaceholder ? (e) => startDraggingPolaroid(e, p.id) : undefined}
+                    onTouchStart={isEditorOpen && !isPlaceholder ? (e) => startDraggingPolaroid(e, p.id) : undefined}
+                  >
                     {isPlaceholder ? (
                       <div className="w-full h-full flex flex-col items-center justify-center bg-stone-50 text-stone-400 p-2 text-center select-none pointer-events-none">
                         <Icons.Camera className="w-5 h-5 mb-1 text-stone-300 stroke-[1.2]" />
                         <span className="text-[8px] uppercase tracking-wider font-light text-stone-400">+ Añadir</span>
                       </div>
                     ) : (
-                      <img 
-                        src={getApiUrl(p.url)} 
-                        alt={p.caption || "Momento"} 
-                        className="w-full h-full object-cover select-none pointer-events-none"
-                        referrerPolicy="no-referrer"
-                      />
+                      <>
+                        <img
+                          src={getApiUrl(p.url)}
+                          alt={p.caption || "Momento"}
+                          className="w-full h-full object-cover select-none"
+                          style={{
+                            objectPosition: `${(polaroidLivePos[p.id]?.x ?? p.posX ?? 50)}% ${(polaroidLivePos[p.id]?.y ?? p.posY ?? 50)}%`,
+                            transform: `scale(${p.zoom ?? 1})`,
+                            transformOrigin: 'center center',
+                            pointerEvents: 'none',
+                          }}
+                          referrerPolicy="no-referrer"
+                          draggable={false}
+                        />
+                        {isEditorOpen && (
+                          <div
+                            className="pointer-events-auto absolute bottom-0.5 left-1/2 -translate-x-1/2 flex items-center gap-0.5 bg-black/70 backdrop-blur-sm rounded-full px-1 py-0.5 shadow-md"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => adjustPolaroidZoom(p.id, -0.1)}
+                              className="w-4 h-4 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white text-[10px] leading-none"
+                              aria-label="Alejar"
+                            >
+                              –
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustPolaroidZoom(p.id, 0.1)}
+                              className="w-4 h-4 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white text-[10px] leading-none"
+                              aria-label="Acercar"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
