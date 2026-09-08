@@ -26,8 +26,8 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    onAdminStatusChange?.(isAuthenticated);
-  }, [isAuthenticated, onAdminStatusChange]);
+    onAdminStatusChange?.(isAuthenticated || isAdminUrl);
+  }, [isAuthenticated, isAdminUrl, onAdminStatusChange]);
   const [rsvps, setRsvps] = useState<RsvpResponse[]>([]);
   const [isLoadingRsvps, setIsLoadingRsvps] = useState(false);
   
@@ -59,11 +59,24 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
   useEffect(() => {
     const checkAdminParam = () => {
       const params = new URLSearchParams(window.location.search);
-      const isParamAdmin = params.get('admin') === 'true' || params.has('admin');
-      const isHashAdmin = window.location.hash.includes('admin');
-      const active = isParamAdmin || isHashAdmin;
+      const isParamAdmin =
+        params.get('admin') === 'true' ||
+        params.get('admin') === '1' ||
+        params.has('admin') ||
+        params.get('panel') === 'true';
+      const isHashAdmin = window.location.hash.toLowerCase().includes('admin');
+      const isStoredAuth =
+        typeof window !== 'undefined' &&
+        (sessionStorage.getItem('admin_auth_v1') === 'true' ||
+          localStorage.getItem('wedding_admin_mode') === 'true');
+
+      const active = isParamAdmin || isHashAdmin || isStoredAuth;
       setIsAdminUrl(active);
-      if (active) {
+
+      if (isParamAdmin || isHashAdmin) {
+        try {
+          localStorage.setItem('wedding_admin_mode', 'true');
+        } catch (e) {}
         setIsOpen(true);
       }
     };
@@ -915,19 +928,21 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
 
   return (
     <>
-      {/* Floating admin access button in the bottom right corner */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-2.5 text-xs uppercase tracking-widest rounded-full bg-stone-900/90 hover:bg-stone-900 text-stone-200 hover:text-amber-400 border border-stone-700/70 hover:border-amber-500/60 backdrop-blur-md shadow-2xl transition-all duration-300 cursor-pointer group"
-          title="Abrir Panel de Administración"
-        >
-          <Icons.SlidersHorizontal className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform duration-300" />
-          <span className="font-semibold text-[11px]">Panel Admin</span>
-        </motion.button>
-      </div>
+      {/* Floating admin access button in the bottom right corner - ONLY visible when accessed via admin link or authenticated */}
+      {(isAdminUrl || isAuthenticated) && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2.5 text-xs uppercase tracking-widest rounded-full bg-stone-900/90 hover:bg-stone-900 text-stone-200 hover:text-amber-400 border border-stone-700/70 hover:border-amber-500/60 backdrop-blur-md shadow-2xl transition-all duration-300 cursor-pointer group"
+            title="Abrir Panel de Administración"
+          >
+            <Icons.SlidersHorizontal className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform duration-300" />
+            <span className="font-semibold text-[11px]">Panel Admin</span>
+          </motion.button>
+        </div>
+      )}
 
       {/* Admin Panel Modal Overlay */}
       <AnimatePresence>
@@ -954,6 +969,15 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
                       onClick={() => {
                         setIsAuthenticated(false);
                         sessionStorage.removeItem('admin_auth_v1');
+                        try {
+                          localStorage.removeItem('wedding_admin_mode');
+                        } catch (e) {}
+                        setIsAdminUrl(false);
+                        setIsOpen(false);
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete('admin');
+                        url.searchParams.delete('panel');
+                        window.history.pushState({}, '', url.toString());
                       }}
                       className="px-2.5 py-1 text-[11px] text-stone-400 hover:text-red-400 hover:bg-stone-800/60 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                       title="Cerrar sesión de admin"

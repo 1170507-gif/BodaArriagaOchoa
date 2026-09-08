@@ -309,42 +309,44 @@ export default function App() {
         />
       )}
 
-      {/* Floating View Switcher for easy testing and navigation */}
-      <div className="fixed bottom-4 left-4 z-40 flex items-center gap-1 p-1 bg-stone-900/90 backdrop-blur-md border border-stone-700/60 rounded-full shadow-2xl text-[11px]">
-        <button
-          type="button"
-          onClick={() => {
-            setCurrentView('invitation');
-            const url = new URL(window.location.href);
-            url.searchParams.delete('confirmacion2');
-            window.history.pushState({}, '', url.toString());
-          }}
-          className={`px-3 py-1.5 rounded-full transition-all cursor-pointer font-medium ${
-            currentView === 'invitation'
-              ? 'bg-amber-600 text-stone-950 font-semibold shadow'
-              : 'text-stone-300 hover:text-white'
-          }`}
-        >
-          Invitación
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setCurrentView('second_confirmation');
-            const url = new URL(window.location.href);
-            url.searchParams.set('confirmacion2', 'true');
-            window.history.pushState({}, '', url.toString());
-          }}
-          className={`px-3 py-1.5 rounded-full transition-all cursor-pointer font-medium flex items-center gap-1.5 ${
-            currentView === 'second_confirmation'
-              ? 'bg-amber-600 text-stone-950 font-semibold shadow'
-              : 'text-stone-300 hover:text-white'
-          }`}
-        >
-          <span>2ª Confirmación</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        </button>
-      </div>
+      {/* Floating View Switcher for easy testing and navigation - ONLY visible for admin */}
+      {isAdmin && (
+        <div className="fixed bottom-4 left-4 z-40 flex items-center gap-1 p-1 bg-stone-900/90 backdrop-blur-md border border-stone-700/60 rounded-full shadow-2xl text-[11px]">
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentView('invitation');
+              const url = new URL(window.location.href);
+              url.searchParams.delete('confirmacion2');
+              window.history.pushState({}, '', url.toString());
+            }}
+            className={`px-3 py-1.5 rounded-full transition-all cursor-pointer font-medium ${
+              currentView === 'invitation'
+                ? 'bg-amber-600 text-stone-950 font-semibold shadow'
+                : 'text-stone-300 hover:text-white'
+            }`}
+          >
+            Invitación
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentView('second_confirmation');
+              const url = new URL(window.location.href);
+              url.searchParams.set('confirmacion2', 'true');
+              window.history.pushState({}, '', url.toString());
+            }}
+            className={`px-3 py-1.5 rounded-full transition-all cursor-pointer font-medium flex items-center gap-1.5 ${
+              currentView === 'second_confirmation'
+                ? 'bg-amber-600 text-stone-950 font-semibold shadow'
+                : 'text-stone-300 hover:text-white'
+            }`}
+          >
+            <span>2ª Confirmación</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          </button>
+        </div>
+      )}
 
       {/* Sleek organizer dashboard for video upload, guest list & full live content editor */}
       <AdminPanel 
