@@ -87,6 +87,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "phone": { "type": "string" },
         "maxGuests": { "type": "number" },
         "code": { "type": "string" },
         "confirmed": { "type": "boolean" },

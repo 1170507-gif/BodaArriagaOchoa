@@ -19,7 +19,9 @@ interface AdminPanelProps {
 export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, onConfigChange, onAdminStatusChange }: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdminUrl, setIsAdminUrl] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return typeof window !== 'undefined' && sessionStorage.getItem('admin_auth_v1') === 'true';
+  });
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -362,6 +364,9 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
     const cleanPass = password.trim().toLowerCase();
     if (cleanPass === 'boda' || cleanPass === '1234' || cleanPass === 'alejandro' || cleanPass === 'admin') {
       setIsAuthenticated(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('admin_auth_v1', 'true');
+      }
       setErrorMsg('');
     } else {
       setErrorMsg('Contraseña incorrecta. Prueba con "boda" o "1234"');
@@ -459,6 +464,294 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
         localStorage.setItem('wedding_rsvps_v1', JSON.stringify(updated));
       } catch (e) {
         console.error(e);
+      }
+    }
+  };
+
+  // Move an unconfirmed guest to second confirmation (manual confirmation)
+  const handleMoveGuestToSecondConfirmation = async (guestId: string, status: 'yes' | 'no' | 'pending' = 'pending', phone?: string) => {
+    const timestamp = new Date().toISOString();
+    const updates: Partial<Guest> = {
+      confirmed: true,
+      attending: 'yes',
+      secondConfirmation: status,
+      secondConfirmedAt: timestamp,
+    };
+    if (phone !== undefined && phone.trim()) {
+      updates.phone = phone.trim();
+    }
+
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'guests', guestId), updates);
+      } catch (err) {
+        console.error('Error moving guest to second confirmation:', err);
+        try {
+          handleFirestoreError(err, OperationType.UPDATE, `guests/${guestId}`);
+        } catch (e) {
+          // Handled
+        }
+      }
+    }
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, ...updates } : g));
+    const saved = localStorage.getItem('wedding_guests_v1');
+    if (saved) {
+      try {
+        const list = JSON.parse(saved) as Guest[];
+        const updated = list.map(g => g.id === guestId ? { ...g, ...updates } : g);
+        localStorage.setItem('wedding_guests_v1', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Remove guest from second confirmation (return to unconfirmed / reset)
+  const handleRemoveGuestFromSecondConfirmation = async (guestId: string, sourceType: 'guest' | 'rsvp' = 'guest') => {
+    if (sourceType === 'guest') {
+      const updates: Partial<Guest> = {
+        confirmed: false,
+        attending: 'no',
+        secondConfirmation: 'pending',
+        secondConfirmedAt: undefined,
+      };
+
+      if (isFirebaseActive && db) {
+        try {
+          await updateDoc(doc(db, 'guests', guestId), {
+            confirmed: false,
+            attending: 'no',
+            secondConfirmation: 'pending'
+          });
+        } catch (err) {
+          console.error('Error resetting guest confirmation in Firestore:', err);
+          try {
+            handleFirestoreError(err, OperationType.UPDATE, `guests/${guestId}`);
+          } catch (e) {
+            // Handled
+          }
+        }
+      }
+      setGuests(prev => prev.map(g => g.id === guestId ? { ...g, ...updates } : g));
+      const saved = localStorage.getItem('wedding_guests_v1');
+      if (saved) {
+        try {
+          const list = JSON.parse(saved) as Guest[];
+          const updated = list.map(g => g.id === guestId ? { ...g, ...updates } : g);
+          localStorage.setItem('wedding_guests_v1', JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Also reset any matching RSVP with this name
+      const targetGuest = guests.find(g => g.id === guestId);
+      if (targetGuest) {
+        const normName = targetGuest.name.trim().toLowerCase();
+        const matchingRsvps = rsvps.filter(r => r.fullName.trim().toLowerCase() === normName);
+        for (const r of matchingRsvps) {
+          if (isFirebaseActive && db) {
+            try {
+              await updateDoc(doc(db, 'rsvps', r.id), {
+                attending: 'no',
+                secondConfirmation: 'pending'
+              });
+            } catch (e) {}
+          }
+          setRsvps(prev => prev.map(item => item.id === r.id ? { ...item, attending: 'no', secondConfirmation: 'pending' } : item));
+        }
+      }
+    } else {
+      // RSVP item
+      if (isFirebaseActive && db) {
+        try {
+          await updateDoc(doc(db, 'rsvps', guestId), {
+            attending: 'no',
+            secondConfirmation: 'pending'
+          });
+        } catch (err) {
+          console.error('Error resetting rsvp confirmation in Firestore:', err);
+          try {
+            handleFirestoreError(err, OperationType.UPDATE, `rsvps/${guestId}`);
+          } catch (e) {}
+        }
+      }
+      setRsvps(prev => prev.map(r => r.id === guestId ? { ...r, attending: 'no', secondConfirmation: 'pending' } : r));
+      const saved = localStorage.getItem('wedding_rsvps_v1');
+      if (saved) {
+        try {
+          const list = JSON.parse(saved) as RsvpResponse[];
+          const updated = list.map(r => r.id === guestId ? { ...r, attending: 'no', secondConfirmation: 'pending' } : r);
+          localStorage.setItem('wedding_rsvps_v1', JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  };
+
+  // Update guest name directly
+  const handleUpdateGuestName = async (guestId: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+
+    const oldGuest = guests.find(g => g.id === guestId);
+    const oldName = oldGuest?.name;
+
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'guests', guestId), {
+          name: trimmed
+        });
+      } catch (err) {
+        console.error('Error updating guest name:', err);
+        try {
+          handleFirestoreError(err, OperationType.UPDATE, `guests/${guestId}`);
+        } catch (e) {}
+      }
+    }
+
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, name: trimmed } : g));
+    const saved = localStorage.getItem('wedding_guests_v1');
+    if (saved) {
+      try {
+        const list = JSON.parse(saved) as Guest[];
+        const updated = list.map(g => g.id === guestId ? { ...g, name: trimmed } : g);
+        localStorage.setItem('wedding_guests_v1', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Also update any matching RSVPs if their name matched the old name
+    if (oldName) {
+      const normOld = oldName.trim().toLowerCase();
+      const matchingRsvps = rsvps.filter(r => r.fullName.trim().toLowerCase() === normOld);
+      for (const r of matchingRsvps) {
+        if (isFirebaseActive && db) {
+          try {
+            await updateDoc(doc(db, 'rsvps', r.id), { fullName: trimmed });
+          } catch (e) {}
+        }
+        setRsvps(prev => prev.map(item => item.id === r.id ? { ...item, fullName: trimmed } : item));
+      }
+    }
+  };
+
+  // Update RSVP name directly
+  const handleUpdateRsvpName = async (rsvpId: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'rsvps', rsvpId), {
+          fullName: trimmed
+        });
+      } catch (err) {
+        console.error('Error updating rsvp name:', err);
+        try {
+          handleFirestoreError(err, OperationType.UPDATE, `rsvps/${rsvpId}`);
+        } catch (e) {}
+      }
+    }
+
+    setRsvps(prev => prev.map(r => r.id === rsvpId ? { ...r, fullName: trimmed } : r));
+    const saved = localStorage.getItem('wedding_rsvps_v1');
+    if (saved) {
+      try {
+        const list = JSON.parse(saved) as RsvpResponse[];
+        const updated = list.map(r => r.id === rsvpId ? { ...r, fullName: trimmed } : r);
+        localStorage.setItem('wedding_rsvps_v1', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Update guest phone number directly
+  const handleUpdateGuestPhone = async (guestId: string, newPhone: string) => {
+    const cleanPhone = newPhone.trim();
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'guests', guestId), {
+          phone: cleanPhone
+        });
+      } catch (err) {
+        console.error('Error updating guest phone:', err);
+        try {
+          handleFirestoreError(err, OperationType.UPDATE, `guests/${guestId}`);
+        } catch (e) {
+          // Handled
+        }
+      }
+    }
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, phone: cleanPhone } : g));
+    const saved = localStorage.getItem('wedding_guests_v1');
+    if (saved) {
+      try {
+        const list = JSON.parse(saved) as Guest[];
+        const updated = list.map(g => g.id === guestId ? { ...g, phone: cleanPhone } : g);
+        localStorage.setItem('wedding_guests_v1', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Update guest assigned passes directly
+  const handleUpdateGuestPasses = async (targetId: string, passes: number, sourceType: 'guest' | 'rsvp' = 'guest') => {
+    const validPasses = Math.max(1, Math.min(50, Math.round(passes)));
+
+    if (sourceType === 'guest') {
+      if (isFirebaseActive && db) {
+        try {
+          await updateDoc(doc(db, 'guests', targetId), {
+            maxGuests: validPasses,
+            guestsCount: validPasses,
+          });
+        } catch (err) {
+          console.error('Error updating guest passes in Firestore:', err);
+          try {
+            handleFirestoreError(err, OperationType.UPDATE, `guests/${targetId}`);
+          } catch (e) {}
+        }
+      }
+      setGuests(prev => prev.map(g => g.id === targetId ? { ...g, maxGuests: validPasses, guestsCount: validPasses } : g));
+      const saved = localStorage.getItem('wedding_guests_v1');
+      if (saved) {
+        try {
+          const list = JSON.parse(saved) as Guest[];
+          const updated = list.map(g => g.id === targetId ? { ...g, maxGuests: validPasses, guestsCount: validPasses } : g);
+          localStorage.setItem('wedding_guests_v1', JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    } else {
+      // RSVP
+      if (isFirebaseActive && db) {
+        try {
+          await updateDoc(doc(db, 'rsvps', targetId), {
+            guestsCount: validPasses
+          });
+        } catch (err) {
+          console.error('Error updating rsvp passes in Firestore:', err);
+          try {
+            handleFirestoreError(err, OperationType.UPDATE, `rsvps/${targetId}`);
+          } catch (e) {}
+        }
+      }
+      setRsvps(prev => prev.map(r => r.id === targetId ? { ...r, guestsCount: validPasses } : r));
+      const saved = localStorage.getItem('wedding_rsvps_v1');
+      if (saved) {
+        try {
+          const list = JSON.parse(saved) as RsvpResponse[];
+          const updated = list.map(r => r.id === targetId ? { ...r, guestsCount: validPasses } : r);
+          localStorage.setItem('wedding_rsvps_v1', JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
   };
@@ -622,20 +915,19 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
 
   return (
     <>
-      {/* Discreet floating admin access button in the bottom right corner (only visible if secret URL param ?admin=true is active) */}
-      {isAdminUrl && (
-        <div className="fixed bottom-6 right-6 z-40">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 text-xs uppercase tracking-widest rounded-full bg-white/10 hover:bg-white/20 text-stone-300 border border-stone-200/10 hover:border-stone-200/20 backdrop-blur-md shadow-lg transition-all duration-300 cursor-pointer"
-          >
-            <Icons.SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Panel Organizador</span>
-          </motion.button>
-        </div>
-      )}
+      {/* Floating admin access button in the bottom right corner */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsOpen(true)}
+          className="flex items-center gap-2 px-3.5 py-2.5 text-xs uppercase tracking-widest rounded-full bg-stone-900/90 hover:bg-stone-900 text-stone-200 hover:text-amber-400 border border-stone-700/70 hover:border-amber-500/60 backdrop-blur-md shadow-2xl transition-all duration-300 cursor-pointer group"
+          title="Abrir Panel de Administración"
+        >
+          <Icons.SlidersHorizontal className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform duration-300" />
+          <span className="font-semibold text-[11px]">Panel Admin</span>
+        </motion.button>
+      </div>
 
       {/* Admin Panel Modal Overlay */}
       <AnimatePresence>
@@ -655,15 +947,32 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
                     Panel de Control - Alejandro & Alejandra
                   </h3>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsOpen(false);
-                    setErrorMsg('');
-                  }}
-                  className="p-1.5 rounded-full hover:bg-stone-800 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer"
-                >
-                  <Icons.X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isAuthenticated && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAuthenticated(false);
+                        sessionStorage.removeItem('admin_auth_v1');
+                      }}
+                      className="px-2.5 py-1 text-[11px] text-stone-400 hover:text-red-400 hover:bg-stone-800/60 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      title="Cerrar sesión de admin"
+                    >
+                      <Icons.LogOut className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Cerrar Sesión</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      setErrorMsg('');
+                    }}
+                    className="p-1.5 rounded-full hover:bg-stone-800 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer"
+                    title="Cerrar ventana"
+                  >
+                    <Icons.X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Body */}
@@ -1178,6 +1487,12 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
                         onConfigChange={onConfigChange}
                         onUpdateGuestSecondConfirmation={handleUpdateGuestSecondConfirmation}
                         onUpdateRsvpSecondConfirmation={handleUpdateRsvpSecondConfirmation}
+                        onMoveGuestToSecondConfirmation={handleMoveGuestToSecondConfirmation}
+                        onRemoveGuestFromSecondConfirmation={handleRemoveGuestFromSecondConfirmation}
+                        onUpdateGuestPhone={handleUpdateGuestPhone}
+                        onUpdateGuestName={handleUpdateGuestName}
+                        onUpdateRsvpName={handleUpdateRsvpName}
+                        onUpdateGuestPasses={handleUpdateGuestPasses}
                         onReload={() => {
                           loadGuests();
                           loadRsvps();

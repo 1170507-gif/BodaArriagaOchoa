@@ -70,6 +70,7 @@ interface InvitationPreviewProps {
   onSubmitRsvp: (rsvp: Omit<RsvpResponse, 'id' | 'submittedAt'>) => void;
   isEditorOpen?: boolean;
   onConfigChange?: (newConfig: WeddingConfig) => void;
+  onOpenSecondConfirmation?: (guestCode?: string) => void;
 }
 
 export default function InvitationPreview({
@@ -77,6 +78,7 @@ export default function InvitationPreview({
   onSubmitRsvp,
   isEditorOpen = false,
   onConfigChange,
+  onOpenSecondConfirmation,
 }: InvitationPreviewProps) {
   const [overlayOpened, setOverlayOpened] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -2125,6 +2127,26 @@ className="z-20 pointer-events-auto flex items-center gap-1.5 px-4.5 py-2.5 bg-t
             >
               Confirmar asistencia
             </h2>
+
+            {/* Direct access to Second Confirmation Frontend */}
+            {onOpenSecondConfirmation && (
+              <div className="mb-5 p-3 rounded-2xl bg-amber-50/80 border border-amber-300/60 flex items-center justify-between text-left">
+                <div className="flex items-center gap-2">
+                  <Icons.CheckCircle2 className="w-4 h-4 text-amber-700 shrink-0" />
+                  <div className="text-[11px] text-stone-800">
+                    <span className="font-semibold block text-amber-900">Segunda Confirmación de Comensales</span>
+                    <span className="text-stone-500">Ratifica tus pases asignados oficialmente</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenSecondConfirmation?.(matchedGuest?.code)}
+                  className="px-2.5 py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider transition-all shadow-xs cursor-pointer shrink-0"
+                >
+                  Entrar
+                </button>
+              </div>
+            )}
             
             {matchedGuest ? (
               <div className="mb-6 p-4 bg-white/60 border border-[#753636]/20 rounded-2xl text-center shadow-sm backdrop-blur-[1px]">

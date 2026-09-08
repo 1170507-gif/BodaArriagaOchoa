@@ -3,7 +3,7 @@ import * as Icons from 'lucide-react';
 import { Guest, RsvpResponse, WeddingConfig } from '../types';
 import { getApiUrl } from '../utils/apiUrl';
 
-interface ConfirmedGuestItem {
+export interface ConfirmedGuestItem {
   sourceId: string;
   sourceType: 'guest' | 'rsvp';
   name: string;
@@ -16,6 +16,17 @@ interface ConfirmedGuestItem {
   guestCode?: string;
 }
 
+export interface UnconfirmedGuestItem {
+  sourceId: string;
+  sourceType: 'guest' | 'rsvp';
+  name: string;
+  phone?: string;
+  passes: number;
+  notes?: string;
+  guestCode?: string;
+  reason: 'no_registration' | 'declined';
+}
+
 interface SecondConfirmationTabProps {
   guests: Guest[];
   rsvps: RsvpResponse[];
@@ -23,6 +34,12 @@ interface SecondConfirmationTabProps {
   onConfigChange: (newConfig: WeddingConfig) => void;
   onUpdateGuestSecondConfirmation: (guestId: string, status: 'yes' | 'no' | 'pending') => Promise<void>;
   onUpdateRsvpSecondConfirmation: (rsvpId: string, status: 'yes' | 'no' | 'pending') => Promise<void>;
+  onMoveGuestToSecondConfirmation?: (guestId: string, status?: 'yes' | 'no' | 'pending', phone?: string) => Promise<void>;
+  onRemoveGuestFromSecondConfirmation?: (guestId: string, sourceType?: 'guest' | 'rsvp') => Promise<void>;
+  onUpdateGuestPhone?: (guestId: string, newPhone: string) => Promise<void>;
+  onUpdateGuestName?: (guestId: string, newName: string) => Promise<void>;
+  onUpdateRsvpName?: (rsvpId: string, newName: string) => Promise<void>;
+  onUpdateGuestPasses?: (targetId: string, passes: number, sourceType?: 'guest' | 'rsvp') => Promise<void>;
   onReload: () => void;
   isLoading?: boolean;
 }
@@ -34,11 +51,38 @@ export default function SecondConfirmationTab({
   onConfigChange,
   onUpdateGuestSecondConfirmation,
   onUpdateRsvpSecondConfirmation,
+  onMoveGuestToSecondConfirmation,
+  onRemoveGuestFromSecondConfirmation,
+  onUpdateGuestPhone,
+  onUpdateGuestName,
+  onUpdateRsvpName,
+  onUpdateGuestPasses,
   onReload,
   isLoading = false,
 }: SecondConfirmationTabProps) {
+  // Filters and search for Confirmed Group
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'yes' | 'no' | 'pending'>('all');
+
+  // Search for Unconfirmed Group
+  const [unconfirmedSearch, setUnconfirmedSearch] = useState('');
+
+  // Inline phone editing state
+  const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null);
+  const [phoneDraft, setPhoneDraft] = useState('');
+
+  // Inline name editing state
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
+
+  // Inline passes editing state
+  const [editingPassesId, setEditingPassesId] = useState<string | null>(null);
+  const [passesDraft, setPassesDraft] = useState<number>(1);
+
+  // Action feedback message
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  // Config & Deadline states
   const [isEditingDeadline, setIsEditingDeadline] = useState(false);
   const [deadlineInput, setDeadlineInput] = useState(config.secondConfirmationDeadline || '12 de septiembre');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -48,44 +92,76 @@ export default function SecondConfirmationTab({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Unified list of confirmed guests
-  const confirmedList: ConfirmedGuestItem[] = useMemo(() => {
-    const list: ConfirmedGuestItem[] = [];
+  // Helper to normalize names for deduplication
+  const normalize = (str: string) =>
+    str.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Separate guests into two distinct groups:
+  // 1. Confirmed in 1st stage or manually moved to 2nd confirmation
+  // 2. Unconfirmed / Pending manual confirmation
+  const { confirmedList, unconfirmedList } = useMemo(() => {
+    const confirmed: ConfirmedGuestItem[] = [];
+    const unconfirmed: UnconfirmedGuestItem[] = [];
+    const processedGuestIds = new Set<string>();
     const processedNames = new Set<string>();
 
-    // 1. First add from registered guest list if confirmed attending
+    // 1. Process registered guests from the guests collection
     for (const g of guests) {
-      // If confirmed attending, or if confirmed is true and not attending === 'no'
-      const isAttending = g.confirmed && g.attending !== 'no';
-      if (isAttending) {
-        // Find if there is an RSVP response matching this guest to pull phone/notes
-        const matchingRsvp = rsvps.find(
-          (r) => r.fullName.trim().toLowerCase() === g.name.trim().toLowerCase()
-        );
+      const normName = normalize(g.name);
+      // Look for a matching RSVP response to pull phone or notes if missing on guest
+      const matchingRsvp = rsvps.find((r) => normalize(r.fullName) === normName);
 
-        list.push({
+      // Prioritize guest.phone, fallback to matching RSVP phone
+      const phone = g.phone || matchingRsvp?.phone;
+
+      // A guest is confirmed if g.confirmed is true and not attending === 'no'
+      // If g.confirmed is explicitly false or attending is 'no', they are strictly in unconfirmed group
+      let isAttending = false;
+      if (g.confirmed === true && g.attending !== 'no') {
+        isAttending = true;
+      } else if (g.confirmed === false || g.attending === 'no') {
+        isAttending = false;
+      } else if (matchingRsvp) {
+        isAttending = matchingRsvp.attending === 'yes';
+      }
+
+      if (isAttending) {
+        confirmed.push({
           sourceId: g.id,
           sourceType: 'guest',
           name: g.name,
-          phone: matchingRsvp?.phone,
+          phone,
           passes: g.guestsCount ?? (matchingRsvp?.guestsCount ?? (g.maxGuests || 1)),
           notes: g.notes || matchingRsvp?.notes,
           firstConfirmedAt: g.submittedAt || matchingRsvp?.submittedAt,
           secondConfirmation: g.secondConfirmation || matchingRsvp?.secondConfirmation || 'pending',
           secondConfirmedAt: g.secondConfirmedAt || matchingRsvp?.secondConfirmedAt,
-          guestCode: g.code,
+          guestCode: g.code || g.id,
         });
-
-        processedNames.add(g.name.trim().toLowerCase());
+      } else {
+        unconfirmed.push({
+          sourceId: g.id,
+          sourceType: 'guest',
+          name: g.name,
+          phone,
+          passes: g.maxGuests || 1,
+          notes: g.notes || matchingRsvp?.notes,
+          guestCode: g.code || g.id,
+          reason: g.attending === 'no' || matchingRsvp?.attending === 'no' ? 'declined' : 'no_registration',
+        });
       }
+
+      processedGuestIds.add(g.id);
+      processedNames.add(normName);
     }
 
-    // 2. Add from RSVPs where attending === 'yes' that aren't already included
+    // 2. Process RSVPs from the rsvps collection that might not match a guest by name
     for (const r of rsvps) {
-      if (r.attending === 'yes') {
-        const normalizedName = (r.fullName || '').trim().toLowerCase();
-        if (!processedNames.has(normalizedName)) {
-          list.push({
+      const normName = normalize(r.fullName || '');
+      if (!processedNames.has(normName)) {
+        const rsvpCode = (r as any).code || r.id;
+        if (r.attending === 'yes') {
+          confirmed.push({
             sourceId: r.id,
             sourceType: 'rsvp',
             name: r.fullName || 'Invitado',
@@ -95,35 +171,33 @@ export default function SecondConfirmationTab({
             firstConfirmedAt: r.submittedAt,
             secondConfirmation: r.secondConfirmation || 'pending',
             secondConfirmedAt: r.secondConfirmedAt,
+            guestCode: rsvpCode,
           });
-          processedNames.add(normalizedName);
+        } else {
+          unconfirmed.push({
+            sourceId: r.id,
+            sourceType: 'rsvp',
+            name: r.fullName || 'Invitado',
+            phone: r.phone,
+            passes: r.guestsCount || 1,
+            notes: r.notes,
+            reason: 'declined',
+            guestCode: rsvpCode,
+          });
         }
+        processedNames.add(normName);
       }
     }
 
-    // 3. Fallback: If no confirmed guests yet, also allow guests that exist so organizer can reconfirm them directly
-    if (list.length === 0 && guests.length > 0) {
-      for (const g of guests) {
-        list.push({
-          sourceId: g.id,
-          sourceType: 'guest',
-          name: g.name,
-          passes: g.maxGuests || 1,
-          notes: g.notes,
-          firstConfirmedAt: g.submittedAt,
-          secondConfirmation: g.secondConfirmation || 'pending',
-          secondConfirmedAt: g.secondConfirmedAt,
-          guestCode: g.code,
-        });
-      }
-    }
+    // Sort both alphabetically
+    confirmed.sort((a, b) => a.name.localeCompare(b.name));
+    unconfirmed.sort((a, b) => a.name.localeCompare(b.name));
 
-    // Sort alphabetically by name
-    return list.sort((a, b) => a.name.localeCompare(b.name));
+    return { confirmedList: confirmed, unconfirmedList: unconfirmed };
   }, [guests, rsvps]);
 
-  // Filtered list
-  const filteredList = useMemo(() => {
+  // Filtered confirmed list
+  const filteredConfirmedList = useMemo(() => {
     return confirmedList.filter((item) => {
       const matchesSearch =
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -133,20 +207,76 @@ export default function SecondConfirmationTab({
     });
   }, [confirmedList, searchTerm, filterStatus]);
 
-  // Statistics
+  // Filtered unconfirmed list
+  const filteredUnconfirmedList = useMemo(() => {
+    return unconfirmedList.filter((item) => {
+      const matchesSearch =
+        item.name.toLowerCase().includes(unconfirmedSearch.toLowerCase()) ||
+        (item.phone && item.phone.includes(unconfirmedSearch));
+      return matchesSearch;
+    });
+  }, [unconfirmedList, unconfirmedSearch]);
+
+  // Statistics including all assigned passes (even unconfirmed)
   const stats = useMemo(() => {
     const total = confirmedList.length;
     const reconfirmedYes = confirmedList.filter((i) => i.secondConfirmation === 'yes').length;
     const reconfirmedNo = confirmedList.filter((i) => i.secondConfirmation === 'no').length;
     const pending = confirmedList.filter((i) => i.secondConfirmation === 'pending' || !i.secondConfirmation).length;
+
+    // Total assigned passes across ALL registered guests (confirmed + unconfirmed)
+    const totalAssignedAllPasses = [...confirmedList, ...unconfirmedList].reduce((sum, i) => sum + (i.passes || 1), 0);
+    // Total passes of guests confirmed for 2nd stage
     const totalFinalPasses = confirmedList
       .filter((i) => i.secondConfirmation === 'yes')
-      .reduce((sum, i) => sum + i.passes, 0);
+      .reduce((sum, i) => sum + (i.passes || 1), 0);
+    // Total passes pending in 2nd stage
+    const totalPendingPasses = confirmedList
+      .filter((i) => i.secondConfirmation === 'pending' || !i.secondConfirmation)
+      .reduce((sum, i) => sum + (i.passes || 1), 0);
+    // Total passes unconfirmed in 1st stage
+    const totalUnconfirmedPasses = unconfirmedList.reduce((sum, i) => sum + (i.passes || 1), 0);
 
-    return { total, reconfirmedYes, reconfirmedNo, pending, totalFinalPasses };
-  }, [confirmedList]);
+    return {
+      total,
+      reconfirmedYes,
+      reconfirmedNo,
+      pending,
+      totalAssignedAllPasses,
+      totalFinalPasses,
+      totalPendingPasses,
+      totalUnconfirmedPasses,
+    };
+  }, [confirmedList, unconfirmedList]);
 
-  // Handler for toggle Yes / No
+  // Helper to build dedicated URL for a guest
+  const getDirectGuestUrl = (guestCode: string) => {
+    return `${window.location.origin}${window.location.pathname}?confirmacion2=true&g=${encodeURIComponent(guestCode)}`;
+  };
+
+  // WhatsApp Link Generator with direct link to front-end second confirmation
+  const buildWhatsAppUrl = (phone: string | undefined, guestName: string, isConfirmedStage1: boolean, guestCode: string) => {
+    const deadline = config.secondConfirmationDeadline || '12 de septiembre';
+    const coupleNames = `${config.coupleName1} & ${config.coupleName2}`;
+    const directUrl = getDirectGuestUrl(guestCode);
+    
+    const message = isConfirmedStage1
+      ? `¡Hola ${guestName}! Te escribimos con mucho cariño para nuestra boda (${coupleNames}). Te recordamos que la fecha límite para la segunda confirmación de asistencia es el ${deadline}. Por favor confirma tus pases asignados directamente aquí: ${directUrl}`
+      : `¡Hola ${guestName}! Te escribimos con mucho cariño para la boda de ${coupleNames}. Estamos cerrando la lista oficial de comensales (fecha límite: ${deadline}). Por favor confirma tus pases asignados directamente aquí: ${directUrl}`;
+
+    const encoded = encodeURIComponent(message);
+    if (!phone || !phone.trim()) {
+      return `https://api.whatsapp.com/send?text=${encoded}`;
+    }
+
+    const clean = phone.replace(/[^0-9]/g, '');
+    if (!clean) {
+      return `https://api.whatsapp.com/send?text=${encoded}`;
+    }
+    return `https://api.whatsapp.com/send?phone=${clean}&text=${encoded}`;
+  };
+
+  // Handler for toggle Yes / No in 2nd confirmation
   const handleToggleStatus = async (item: ConfirmedGuestItem, newStatus: 'yes' | 'no' | 'pending') => {
     setUpdatingId(item.sourceId);
     try {
@@ -158,6 +288,114 @@ export default function SecondConfirmationTab({
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  // Handler to move an unconfirmed guest into the 2nd confirmation group
+  const handleMoveToSecondConfirmation = async (
+    item: UnconfirmedGuestItem,
+    targetStatus: 'yes' | 'no' | 'pending' = 'pending'
+  ) => {
+    setUpdatingId(item.sourceId);
+    try {
+      if (item.sourceType === 'guest') {
+        if (onMoveGuestToSecondConfirmation) {
+          await onMoveGuestToSecondConfirmation(item.sourceId, targetStatus, item.phone);
+        } else {
+          await onUpdateGuestSecondConfirmation(item.sourceId, targetStatus);
+        }
+      } else {
+        await onUpdateRsvpSecondConfirmation(item.sourceId, targetStatus);
+      }
+      setActionFeedback(`"${item.name}" fue movido a la Segunda Confirmación con estado ${targetStatus === 'yes' ? 'SÍ' : 'Pendiente'}`);
+      setTimeout(() => setActionFeedback(null), 3500);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Handler to remove guest from 2nd confirmation (send back to unconfirmed)
+  const handleRemoveFromSecondConfirmation = async (item: ConfirmedGuestItem) => {
+    setUpdatingId(item.sourceId);
+    try {
+      if (onRemoveGuestFromSecondConfirmation) {
+        await onRemoveGuestFromSecondConfirmation(item.sourceId, item.sourceType);
+      } else if (item.sourceType === 'guest') {
+        await onUpdateGuestSecondConfirmation(item.sourceId, 'no');
+      } else {
+        await onUpdateRsvpSecondConfirmation(item.sourceId, 'no');
+      }
+      setActionFeedback(`"${item.name}" regresó al grupo de No Confirmados`);
+      setTimeout(() => setActionFeedback(null), 3500);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Inline name editing
+  const handleStartEditName = (id: string, currentName: string) => {
+    setEditingNameId(id);
+    setNameDraft(currentName);
+  };
+
+  const handleSaveName = async (sourceId: string, sourceType: 'guest' | 'rsvp') => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setEditingNameId(null);
+      return;
+    }
+    setUpdatingId(sourceId);
+    try {
+      if (sourceType === 'guest') {
+        if (onUpdateGuestName) {
+          await onUpdateGuestName(sourceId, trimmed);
+        }
+      } else {
+        if (onUpdateRsvpName) {
+          await onUpdateRsvpName(sourceId, trimmed);
+        }
+      }
+      setActionFeedback(`Nombre final actualizado a "${trimmed}"`);
+      setTimeout(() => setActionFeedback(null), 3500);
+    } finally {
+      setUpdatingId(null);
+      setEditingNameId(null);
+    }
+  };
+
+  // Inline passes editing
+  const handleStartEditPasses = (id: string, currentPasses: number) => {
+    setEditingPassesId(id);
+    setPassesDraft(currentPasses || 1);
+  };
+
+  const handleSavePasses = async (sourceId: string, sourceType: 'guest' | 'rsvp') => {
+    const valid = Math.max(1, Math.min(50, Math.round(Number(passesDraft) || 1)));
+    setUpdatingId(sourceId);
+    try {
+      if (onUpdateGuestPasses) {
+        await onUpdateGuestPasses(sourceId, valid, sourceType);
+      }
+      setActionFeedback(`Pases asignados actualizados a ${valid}`);
+      setTimeout(() => setActionFeedback(null), 3000);
+    } finally {
+      setUpdatingId(null);
+      setEditingPassesId(null);
+    }
+  };
+
+  // Inline phone saving
+  const handleStartEditPhone = (id: string, currentPhone?: string) => {
+    setEditingPhoneId(id);
+    setPhoneDraft(currentPhone || '');
+  };
+
+  const handleSavePhone = async (id: string) => {
+    if (onUpdateGuestPhone) {
+      await onUpdateGuestPhone(id, phoneDraft.trim());
+      setActionFeedback(`Teléfono actualizado`);
+      setTimeout(() => setActionFeedback(null), 3000);
+    }
+    setEditingPhoneId(null);
   };
 
   // Image upload handler
@@ -202,12 +440,22 @@ export default function SecondConfirmationTab({
 
   // Export to Excel / CSV
   const handleExportExcel = () => {
-    if (confirmedList.length === 0) {
+    if (confirmedList.length === 0 && unconfirmedList.length === 0) {
       alert('No hay datos para exportar.');
       return;
     }
 
-    const headers = [
+    // Section 1: 2nd Confirmation list
+    const headers1 = [
+      'SECCIÓN 1: INVITADOS EN SEGUNDA CONFIRMACIÓN',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ];
+    const subheaders1 = [
       'Nombre del Invitado',
       'Teléfono',
       'Pases Asignados',
@@ -217,28 +465,77 @@ export default function SecondConfirmationTab({
       'Notas / Observaciones',
     ];
 
-    const rows = confirmedList.map((item) => [
+    const rows1 = confirmedList.map((item) => [
       `"${item.name.replace(/"/g, '""')}"`,
       `"${(item.phone || '').replace(/"/g, '""')}"`,
       item.passes,
-      '"Asistirá"',
+      '"Asistirá (1ª Etapa)"',
       item.secondConfirmation === 'yes'
         ? '"SÍ (Confirmado)"'
         : item.secondConfirmation === 'no'
-        ? '"NO (Cancelado)"'
+        ? '"NO (Canceló)"'
         : '"PENDIENTE"',
       `"${item.secondConfirmedAt ? new Date(item.secondConfirmedAt).toLocaleString('es-ES') : '-'}"`,
       `"${(item.notes || '').replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    // Section 2: Unconfirmed list
+    const headers2 = [
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ];
+    const section2Title = [
+      'SECCIÓN 2: INVITADOS NO CONFIRMADOS (1ª ETAPA / MANUALES PENDIENTES)',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+    ];
+    const subheaders2 = [
+      'Nombre del Invitado',
+      'Teléfono',
+      'Pases Asignados',
+      'Estado 1ª Etapa',
+      'Acción Sugerida',
+      'Código Invitado',
+      'Notas',
+    ];
+
+    const rows2 = unconfirmedList.map((item) => [
+      `"${item.name.replace(/"/g, '""')}"`,
+      `"${(item.phone || '').replace(/"/g, '""')}"`,
+      item.passes,
+      item.reason === 'declined' ? '"Declinó en 1ª Etapa"' : '"Sin registro en web"',
+      '"Asignar o llamar manual"',
+      `"${item.guestCode || '-'}"`,
+      `"${(item.notes || '').replace(/"/g, '""')}"`,
+    ]);
+
+    const allLines = [
+      headers1.join(','),
+      subheaders1.join(','),
+      ...rows1.map((e) => e.join(',')),
+      headers2.join(','),
+      section2Title.join(','),
+      subheaders2.join(','),
+      ...rows2.map((e) => e.join(',')),
+    ];
+
+    const csvContent = '\uFEFF' + allLines.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
     link.setAttribute(
       'download',
-      `Segunda_Confirmacion_${config.coupleName1}_y_${config.coupleName2}_${new Date().toISOString().slice(0, 10)}.csv`
+      `Segunda_Confirmacion_Completa_${config.coupleName1}_y_${config.coupleName2}_${new Date().toISOString().slice(0, 10)}.csv`
     );
     document.body.appendChild(link);
     link.click();
@@ -248,7 +545,7 @@ export default function SecondConfirmationTab({
 
   // Export to PDF / Printable Report
   const handleExportPDF = () => {
-    if (confirmedList.length === 0) {
+    if (confirmedList.length === 0 && unconfirmedList.length === 0) {
       alert('No hay datos para generar el reporte.');
       return;
     }
@@ -332,11 +629,22 @@ export default function SecondConfirmationTab({
             .stat-no { color: #dc2626; }
             .stat-pending { color: #d97706; }
             .stat-total { color: #753636; }
+            .section-title {
+              font-size: 15px;
+              font-weight: bold;
+              color: #44403c;
+              margin-top: 30px;
+              margin-bottom: 10px;
+              border-left: 4px solid #753636;
+              padding-left: 8px;
+              text-transform: uppercase;
+            }
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 10px;
+              margin-top: 8px;
               font-size: 12px;
+              margin-bottom: 25px;
             }
             th {
               background-color: #f5f5f4;
@@ -349,7 +657,7 @@ export default function SecondConfirmationTab({
               font-size: 11px;
             }
             td {
-              padding: 9px 8px;
+              padding: 8px;
               border-bottom: 1px solid #e7e5e4;
             }
             tr:nth-child(even) {
@@ -389,7 +697,7 @@ export default function SecondConfirmationTab({
 
           <div class="stats-container">
             <div class="stat-box">
-              <div style="font-size: 10px; text-transform: uppercase; color: #78716c;">Total Primer RSVP</div>
+              <div style="font-size: 10px; text-transform: uppercase; color: #78716c;">En 2ª Confirmación</div>
               <div class="stat-number stat-total">${stats.total}</div>
             </div>
             <div class="stat-box">
@@ -410,14 +718,15 @@ export default function SecondConfirmationTab({
             </div>
           </div>
 
+          <div class="section-title">1. Invitados en Segunda Confirmación (Lista Principal)</div>
           <table>
             <thead>
               <tr>
-                <th style="width: 30px;">#</th>
+                <th style="width: 25px;">#</th>
                 <th>Invitado</th>
                 <th>Teléfono</th>
                 <th style="text-align: center;">Pases</th>
-                <th>Segunda Confirmación</th>
+                <th>2ª Confirmación</th>
                 <th>Fecha Respuesta</th>
                 <th>Observaciones</th>
               </tr>
@@ -429,7 +738,7 @@ export default function SecondConfirmationTab({
                 <tr>
                   <td>${idx + 1}</td>
                   <td><strong>${item.name}</strong></td>
-                  <td>${item.phone || '-'}</td>
+                  <td>${item.phone || '<span style="color:#a8a29e;">Sin teléfono</span>'}</td>
                   <td style="text-align: center; font-weight: bold;">${item.passes}</td>
                   <td>
                     ${
@@ -441,6 +750,42 @@ export default function SecondConfirmationTab({
                     }
                   </td>
                   <td>${item.secondConfirmedAt ? new Date(item.secondConfirmedAt).toLocaleDateString('es-ES') : '-'}</td>
+                  <td style="color: #78716c; font-size: 11px;">${item.notes || '-'}</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+
+          <div class="section-title">2. Invitados No Confirmados en 1ª Etapa (${unconfirmedList.length} registrados)</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 25px;">#</th>
+                <th>Invitado</th>
+                <th>Teléfono</th>
+                <th style="text-align: center;">Pases</th>
+                <th>Estado 1ª Etapa</th>
+                <th>Observaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${unconfirmedList
+                .map(
+                  (item, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td><strong>${item.name}</strong></td>
+                  <td>${item.phone || '<span style="color:#a8a29e;">Sin teléfono</span>'}</td>
+                  <td style="text-align: center; font-weight: bold;">${item.passes}</td>
+                  <td>
+                    ${
+                      item.reason === 'declined'
+                        ? '<span class="status-tag tag-no">Declinó 1ª Etapa</span>'
+                        : '<span class="status-tag tag-pending">Sin Registro en Web</span>'
+                    }
+                  </td>
                   <td style="color: #78716c; font-size: 11px;">${item.notes || '-'}</td>
                 </tr>
               `
@@ -470,7 +815,7 @@ export default function SecondConfirmationTab({
   const secondConfirmationImg = config.secondConfirmationImage || config.images.portrait || '/images/invitacion_1.webp';
 
   return (
-    <div className="space-y-6 text-left">
+    <div className="space-y-8 text-left">
       {/* 1. TOP DEADLINE & HERO BANNER */}
       <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/40 via-stone-900/60 to-stone-950/80 p-6 backdrop-blur-md shadow-lg">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -532,7 +877,7 @@ export default function SecondConfirmationTab({
             </div>
 
             <p className="text-xs text-stone-400 max-w-xl">
-              Pregunta y registra nombre por nombre la confirmación definitiva de los invitados que ya habían confirmado en la primera etapa, asegurando el aforo exacto para el banquete.
+              Gestiona nombre por nombre la confirmación definitiva. También puedes decidir a quién de los no confirmados de la 1ª etapa sumar a la lista para que cuenten en el aforo final.
             </p>
           </div>
 
@@ -551,7 +896,7 @@ export default function SecondConfirmationTab({
               type="button"
               onClick={handleExportExcel}
               className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-stone-950 rounded-xl font-semibold transition-all shadow cursor-pointer active:scale-95"
-              title="Descargar tabla en formato Excel (CSV compatible)"
+              title="Descargar tabla en formato Excel (CSV compatible con lista de confirmados y no confirmados)"
             >
               <Icons.Download className="w-4 h-4" />
               <span>Descargar Excel</span>
@@ -570,31 +915,41 @@ export default function SecondConfirmationTab({
         </div>
       </div>
 
-      {/* 2. STATS OVERVIEW CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="p-3.5 bg-stone-900/60 border border-stone-800 rounded-xl text-center">
-          <p className="text-[10px] text-stone-400 uppercase tracking-wider">Confirmados 1ª Ronda</p>
-          <p className="text-xl font-semibold text-stone-100 mt-1">{stats.total}</p>
+      {/* 2. STATS OVERVIEW CARDS WITH ASSIGNED PASSES (EVEN UNCONFIRMED) */}
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+        <div className="p-3 bg-stone-900/80 border border-amber-500/30 rounded-xl text-center shadow-sm">
+          <p className="text-[10px] text-amber-300 uppercase tracking-wider font-medium">Total Pases Asignados</p>
+          <p className="text-xl font-bold text-amber-400 mt-1">{stats.totalAssignedAllPasses}</p>
+          <span className="text-[9px] text-stone-400">Todos los invitados</span>
         </div>
-        <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/40 rounded-xl text-center">
-          <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-medium">Reconfirmados (SÍ)</p>
-          <p className="text-xl font-semibold text-emerald-400 mt-1">{stats.reconfirmedYes}</p>
+        <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl text-center shadow-sm">
+          <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-medium">Pases Ratificados (SÍ)</p>
+          <p className="text-xl font-bold text-emerald-400 mt-1">{stats.totalFinalPasses}</p>
+          <span className="text-[9px] text-emerald-500/80">{stats.reconfirmedYes} invitaciones</span>
         </div>
-        <div className="p-3.5 bg-red-950/20 border border-red-800/40 rounded-xl text-center">
+        <div className="p-3 bg-red-950/30 border border-red-800/40 rounded-xl text-center shadow-sm">
           <p className="text-[10px] text-red-400 uppercase tracking-wider font-medium">No Asistirán (NO)</p>
-          <p className="text-xl font-semibold text-red-400 mt-1">{stats.reconfirmedNo}</p>
+          <p className="text-xl font-bold text-red-400 mt-1">{stats.reconfirmedNo}</p>
+          <span className="text-[9px] text-red-500/80">Cancelados</span>
         </div>
-        <div className="p-3.5 bg-amber-950/20 border border-amber-800/40 rounded-xl text-center">
-          <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium">Pendientes</p>
-          <p className="text-xl font-semibold text-amber-400 mt-1">{stats.pending}</p>
+        <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-center shadow-sm">
+          <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium">Pases Pendientes 2ª</p>
+          <p className="text-xl font-bold text-amber-400 mt-1">{stats.totalPendingPasses}</p>
+          <span className="text-[9px] text-amber-500/80">{stats.pending} en espera</span>
         </div>
-        <div className="col-span-2 sm:col-span-1 p-3.5 bg-stone-900/60 border border-amber-600/30 rounded-xl text-center">
-          <p className="text-[10px] text-amber-300 uppercase tracking-wider font-medium">Comensales Finales</p>
-          <p className="text-xl font-semibold text-amber-400 mt-1">{stats.totalFinalPasses}</p>
+        <div className="p-3 bg-purple-950/20 border border-purple-800/40 rounded-xl text-center shadow-sm">
+          <p className="text-[10px] text-purple-400 uppercase tracking-wider font-medium">Pases No Confirmados 1ª</p>
+          <p className="text-xl font-bold text-purple-400 mt-1">{stats.totalUnconfirmedPasses}</p>
+          <span className="text-[9px] text-purple-400/80">{unconfirmedList.length} por rescatar</span>
+        </div>
+        <div className="p-3 bg-stone-900/60 border border-stone-800 rounded-xl text-center shadow-sm">
+          <p className="text-[10px] text-stone-400 uppercase tracking-wider font-medium">En 2ª Confirmación</p>
+          <p className="text-xl font-bold text-stone-100 mt-1">{stats.total}</p>
+          <span className="text-[9px] text-stone-500">Invitaciones</span>
         </div>
       </div>
 
-      {/* 3. DEDICATED IMAGE INTRO SECTION (as requested: "deja espacio para introducir una imagen como las de la invitacion principal") */}
+      {/* 3. DEDICATED IMAGE INTRO SECTION */}
       <div className="bg-stone-950/40 border border-stone-800/80 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-stone-800 pb-3">
           <div className="flex items-center gap-2">
@@ -604,7 +959,7 @@ export default function SecondConfirmationTab({
                 Imagen de la Segunda Confirmación
               </h4>
               <p className="text-xs text-stone-400">
-                Espacio para introducir una foto romántica o postal, con el mismo estilo visual de la invitación principal.
+                Espacio para introducir una foto romántica o postal con el mismo estilo visual de la invitación principal.
               </p>
             </div>
           </div>
@@ -657,7 +1012,7 @@ export default function SecondConfirmationTab({
           </div>
         )}
 
-        {/* Image Showcase Card (styled like the polaroids and invitation portrait) */}
+        {/* Image Showcase Card */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
           <div className="md:col-span-1">
             <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-stone-700/60 shadow-xl bg-stone-900 group">
@@ -699,16 +1054,16 @@ export default function SecondConfirmationTab({
         </div>
       </div>
 
-      {/* 4. INTERACTIVE GUESTS LIST (NAME BY NAME YES / NO BUTTONS) */}
+      {/* 4. GRUPO 1: LISTA PRINCIPAL DE SEGUNDA CONFIRMACIÓN (NOMBRE POR NOMBRE) */}
       <div className="bg-stone-950/40 border border-stone-800/80 rounded-2xl p-5 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-stone-800 pb-3">
           <div>
             <h4 className="text-sm font-semibold text-stone-200 flex items-center gap-2">
               <Icons.UserCheck className="w-4 h-4 text-amber-500" />
-              <span>Lista de Reconfirmación (Nombre por Nombre)</span>
+              <span>Invitados en Segunda Confirmación ({confirmedList.length})</span>
             </h4>
             <p className="text-xs text-stone-400 mt-0.5">
-              Haz clic en "Sí" o "No" para cada invitado. Los cambios se guardan instantáneamente.
+              Haz clic en "Sí" o "No" para cada invitado. Si no tienen teléfono registrado, el botón de WhatsApp siempre creará el enlace para que elijas el contacto.
             </p>
           </div>
 
@@ -720,8 +1075,8 @@ export default function SecondConfirmationTab({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar invitado..."
-                className="pl-8 pr-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 outline-none focus:border-amber-500 placeholder-stone-500 w-44"
+                placeholder="Buscar invitado o teléfono..."
+                className="pl-8 pr-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 outline-none focus:border-amber-500 placeholder-stone-500 w-48"
               />
             </div>
 
@@ -775,12 +1130,29 @@ export default function SecondConfirmationTab({
           </div>
         </div>
 
-        {/* List / Table */}
+        {/* Action feedback message */}
+        {actionFeedback && (
+          <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <Icons.CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="font-medium">{actionFeedback}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionFeedback(null)}
+              className="p-1 text-stone-400 hover:text-stone-200 cursor-pointer"
+            >
+              <Icons.X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Table of Confirmed Guests */}
         {isLoading ? (
           <div className="py-12 text-center text-stone-500 text-xs">
             Cargando confirmaciones...
           </div>
-        ) : filteredList.length === 0 ? (
+        ) : filteredConfirmedList.length === 0 ? (
           <div className="py-12 text-center text-stone-500 text-xs space-y-2">
             <Icons.Users className="w-8 h-8 text-stone-600 mx-auto" />
             <p>No se encontraron invitados con los filtros seleccionados.</p>
@@ -791,27 +1163,27 @@ export default function SecondConfirmationTab({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-stone-900 text-stone-400 border-b border-stone-800 uppercase tracking-wider">
-                    <th className="p-3 font-semibold">Invitado</th>
+                    <th className="p-3 font-semibold">Invitado (Editar)</th>
+                    <th className="p-3 font-semibold">Teléfono</th>
                     <th className="p-3 font-semibold text-center">Pases</th>
-                    <th className="p-3 font-semibold">1ª Confirmación</th>
                     <th className="p-3 font-semibold text-center">¿Asistirá? (Segunda Confirmación)</th>
-                    <th className="p-3 font-semibold">Observaciones / Contacto</th>
-                    <th className="p-3 text-center font-semibold">Recordatorio</th>
+                    <th className="p-3 font-semibold text-center">WhatsApp</th>
+                    <th className="p-3 text-center font-semibold">Mover a No Confirmados</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-800/50 text-stone-300">
-                  {filteredList.map((item) => {
+                  {filteredConfirmedList.map((item) => {
                     const isYes = item.secondConfirmation === 'yes';
                     const isNo = item.secondConfirmation === 'no';
                     const isPending = !item.secondConfirmation || item.secondConfirmation === 'pending';
                     const isItemUpdating = updatingId === item.sourceId;
+                    const isEditingPhone = editingPhoneId === item.sourceId;
+                    const isEditingName = editingNameId === item.sourceId;
+                    const isEditingPasses = editingPassesId === item.sourceId;
 
-                    // WhatsApp reminder message
-                    const reminderMsg = encodeURIComponent(
-                      `¡Hola ${item.name}! Te escribimos con mucho cariño para nuestra boda. Te recordamos que la fecha máxima para la segunda confirmación de asistencia es el ${
-                        config.secondConfirmationDeadline || '12 de septiembre'
-                      }. ¿Nos acompañas en nuestro gran día? 🎉🥂`
-                    );
+                    const guestCode = item.guestCode || item.sourceId;
+                    const whatsappUrl = buildWhatsAppUrl(item.phone, item.name, true, guestCode);
+                    const dedicatedUrl = getDirectGuestUrl(guestCode);
 
                     return (
                       <tr
@@ -824,34 +1196,160 @@ export default function SecondConfirmationTab({
                             : 'hover:bg-stone-900/30'
                         }`}
                       >
-                        {/* Guest Name */}
+                        {/* Guest Name with Inline Edit */}
                         <td className="p-3">
-                          <div className="font-semibold text-stone-100 flex items-center gap-1.5">
-                            <span>{item.name}</span>
-                          </div>
-                          {item.phone && (
-                            <div className="text-[10px] text-stone-400 mt-0.5 font-mono">
-                              Tel: {item.phone}
+                          {isEditingName ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={nameDraft}
+                                onChange={(e) => setNameDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveName(item.sourceId, item.sourceType);
+                                  if (e.key === 'Escape') setEditingNameId(null);
+                                }}
+                                className="w-36 sm:w-48 px-2 py-1 bg-stone-900 border border-amber-500 rounded text-xs text-stone-100 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveName(item.sourceId, item.sourceType)}
+                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                                title="Guardar nombre final"
+                              >
+                                <Icons.Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingNameId(null)}
+                                className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-400 cursor-pointer"
+                                title="Cancelar"
+                              >
+                                <Icons.X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 group">
+                              <span className="font-semibold text-stone-100">{item.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditName(item.sourceId, item.name)}
+                                className="opacity-60 group-hover:opacity-100 text-stone-400 hover:text-amber-400 transition-opacity p-0.5 cursor-pointer"
+                                title="Editar nombre final"
+                              >
+                                <Icons.Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                          {item.notes && (
+                            <div className="text-[10px] text-stone-400 mt-0.5 truncate max-w-[180px]" title={item.notes}>
+                              Nota: {item.notes}
                             </div>
                           )}
                         </td>
 
-                        {/* Passes */}
-                        <td className="p-3 text-center">
-                          <span className="inline-block px-2.5 py-1 rounded-full bg-stone-900 border border-stone-700 font-mono font-bold text-stone-200">
-                            {item.passes} {item.passes === 1 ? 'pase' : 'pases'}
-                          </span>
+                        {/* Phone with Inline Edit */}
+                        <td className="p-3">
+                          {isEditingPhone ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={phoneDraft}
+                                onChange={(e) => setPhoneDraft(e.target.value)}
+                                placeholder="ej. 9876-5432"
+                                className="w-28 px-2 py-1 bg-stone-900 border border-amber-500 rounded text-xs text-stone-100 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSavePhone(item.sourceId)}
+                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                                title="Guardar teléfono"
+                              >
+                                <Icons.Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPhoneId(null)}
+                                className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-400 cursor-pointer"
+                                title="Cancelar"
+                              >
+                                <Icons.X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : item.phone ? (
+                            <div className="flex items-center gap-1.5 font-mono text-stone-200">
+                              <Icons.Phone className="w-3 h-3 text-stone-500" />
+                              <span>{item.phone}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditPhone(item.sourceId, item.phone)}
+                                className="p-0.5 text-stone-500 hover:text-amber-400 transition-colors cursor-pointer"
+                                title="Editar número telefónico"
+                              >
+                                <Icons.Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditPhone(item.sourceId, '')}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-amber-950/30 text-amber-400 border border-amber-800/40 hover:bg-amber-900/40 transition-colors cursor-pointer"
+                              title="Haz clic para registrar el número de teléfono"
+                            >
+                              <Icons.Plus className="w-2.5 h-2.5" />
+                              <span>+ Agregar cel</span>
+                            </button>
+                          )}
                         </td>
 
-                        {/* First RSVP status */}
-                        <td className="p-3">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-900 text-stone-300 border border-stone-800 text-[10px]">
-                            <Icons.Check className="w-3 h-3 text-emerald-400" />
-                            <span>Confirmó Sí</span>
-                          </span>
-                          {item.firstConfirmedAt && (
-                            <div className="text-[9px] text-stone-500 mt-0.5">
-                              {new Date(item.firstConfirmedAt).toLocaleDateString('es-ES')}
+                        {/* Passes with Inline Edit */}
+                        <td className="p-3 text-center">
+                          {isEditingPasses ? (
+                            <div className="inline-flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={passesDraft}
+                                onChange={(e) => setPassesDraft(Math.max(1, parseInt(e.target.value) || 1))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSavePasses(item.sourceId, item.sourceType);
+                                  if (e.key === 'Escape') setEditingPassesId(null);
+                                }}
+                                className="w-14 px-1.5 py-0.5 bg-stone-900 border border-amber-500 rounded text-center text-xs text-stone-100 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSavePasses(item.sourceId, item.sourceType)}
+                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                                title="Guardar pases"
+                              >
+                                <Icons.Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPassesId(null)}
+                                className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-400 cursor-pointer"
+                                title="Cancelar"
+                              >
+                                <Icons.X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center justify-center gap-1 group">
+                              <span className="inline-block px-2.5 py-1 rounded-full bg-stone-900 border border-stone-700 font-mono font-bold text-stone-200">
+                                {item.passes} {item.passes === 1 ? 'pase' : 'pases'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditPasses(item.sourceId, item.passes)}
+                                className="opacity-60 group-hover:opacity-100 text-stone-400 hover:text-amber-400 transition-opacity p-0.5 cursor-pointer"
+                                title="Editar pases asignados"
+                              >
+                                <Icons.Edit2 className="w-3 h-3" />
+                              </button>
                             </div>
                           )}
                         </td>
@@ -869,7 +1367,7 @@ export default function SecondConfirmationTab({
                                   ? 'bg-emerald-600 text-white shadow-md scale-105'
                                   : 'text-stone-400 hover:text-emerald-400 hover:bg-stone-800/80'
                               }`}
-                              title="Marcar como confirmado que SÍ asistirá"
+                              title="Confirmar que SÍ asistirá definitivamente"
                             >
                               <Icons.Check className="w-3.5 h-3.5" />
                               <span>Sí</span>
@@ -885,7 +1383,7 @@ export default function SecondConfirmationTab({
                                   ? 'bg-red-600 text-white shadow-md scale-105'
                                   : 'text-stone-400 hover:text-red-400 hover:bg-stone-800/80'
                               }`}
-                              title="Marcar como NO asistirá (canceló/declinó)"
+                              title="Marcar que NO asistirá (declinó)"
                             >
                               <Icons.X className="w-3.5 h-3.5" />
                               <span>No</span>
@@ -905,43 +1403,64 @@ export default function SecondConfirmationTab({
                             )}
                           </div>
 
-                          {/* Status sublabel */}
+                          {/* Sublabel */}
                           <div className="text-[10px] mt-1">
                             {isYes ? (
                               <span className="text-emerald-400 font-medium">✓ Reconfirmado</span>
                             ) : isNo ? (
                               <span className="text-red-400 font-medium">✕ Declinó</span>
                             ) : (
-                              <span className="text-amber-400/90 italic">⏳ Esperando respuesta</span>
+                              <span className="text-amber-400/90 italic">⏳ Pendiente</span>
                             )}
                           </div>
                         </td>
 
-                        {/* Notes */}
-                        <td className="p-3 max-w-[200px] truncate text-stone-400" title={item.notes || ''}>
-                          {item.notes ? (
-                            <span>{item.notes}</span>
-                          ) : (
-                            <span className="text-stone-600 italic">Sin observaciones</span>
-                          )}
-                        </td>
-
-                        {/* WhatsApp / Contact reminder */}
+                        {/* WhatsApp & Dedicated Link (ALWAYS CREATED) */}
                         <td className="p-3 text-center">
-                          {item.phone ? (
+                          <div className="inline-flex items-center gap-1.5">
                             <a
-                              href={`https://wa.me/${item.phone.replace(/[^0-9]/g, '')}?text=${reminderMsg}`}
+                              href={whatsappUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 border border-emerald-800/40 rounded-lg text-[10px] font-medium transition-colors cursor-pointer"
-                              title="Enviar recordatorio por WhatsApp con fecha límite del 12 de septiembre"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 border border-emerald-800/40 rounded-lg text-[11px] font-medium transition-all cursor-pointer shadow-sm active:scale-95"
+                              title={
+                                item.phone
+                                  ? `Abrir chat directo con ${item.phone} (Enlace personalizado)`
+                                  : 'Sin celular registrado: abre WhatsApp para elegir el contacto a quien enviar el recordatorio'
+                              }
                             >
-                              <Icons.MessageCircle className="w-3 h-3" />
-                              <span>WhatsApp</span>
+                              <Icons.MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>
+                                {item.phone ? 'WhatsApp' : 'WhatsApp (Elegir)'}
+                              </span>
                             </a>
-                          ) : (
-                            <span className="text-[10px] text-stone-600">Sin cel</span>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(dedicatedUrl);
+                                setActionFeedback(`Enlace dedicado copiado para ${item.name}`);
+                                setTimeout(() => setActionFeedback(null), 3000);
+                              }}
+                              className="p-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-amber-400 border border-stone-800 transition-colors cursor-pointer"
+                              title="Copiar enlace dedicado personalizado"
+                            >
+                              <Icons.Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Move back to unconfirmed */}
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFromSecondConfirmation(item)}
+                            disabled={isItemUpdating}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg bg-stone-900 border border-stone-800 hover:border-amber-500/50 hover:bg-stone-800 text-stone-400 hover:text-amber-300 transition-all cursor-pointer whitespace-nowrap active:scale-95 disabled:opacity-50"
+                            title="Regresar este invitado al grupo de No Confirmados"
+                          >
+                            <Icons.ArrowDown className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Mover a No Confirmados</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -953,75 +1472,331 @@ export default function SecondConfirmationTab({
         )}
       </div>
 
-      {/* 5. FOOTER DE LA INVITACIÓN PRINCIPAL CON LOGO E IMAGEN (as requested: "y deja el footer de la invitacion principal con logo e imagen en esta nueva tab") */}
-      <div className="mt-10 pt-6 border-t border-stone-800/80 space-y-6">
-        <div className="flex items-center gap-2 text-stone-400 text-xs uppercase tracking-widest font-mono">
-          <Icons.Sparkles className="w-4 h-4 text-amber-500" />
-          <span>Cierre Oficial de la Invitación</span>
-        </div>
-
-        {/* The Exact Footer Component Layout from InvitationPreview */}
-        <div
-          className="w-full flex flex-col items-center justify-center py-8 px-4 rounded-3xl relative overflow-hidden border border-stone-800/80 shadow-2xl"
-          style={{ backgroundColor: config.theme?.bg || '#FDFBF7' }}
-        >
-          {/* Blurred Romantic Photo */}
-          {(config.blurredPhotoUrl || config.secondConfirmationImage) && (
-            <div className="w-full max-w-[450px] aspect-[4/3] rounded-[28px] overflow-hidden relative shadow-lg border border-stone-300/40 mb-8 group">
-              <img
-                src={config.blurredPhotoUrl || config.secondConfirmationImage}
-                alt="Cierre romántico"
-                className="w-full h-full object-cover filter blur-[3px] scale-105 transition-all duration-700 group-hover:blur-[1px]"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-stone-900/20 flex flex-col items-center justify-center p-6 text-center select-none">
-                <span
-                  className="text-[10px] md:text-xs uppercase tracking-[0.3em] text-white/95 drop-shadow-md font-medium"
-                  style={{ fontFamily: config.theme?.fontBody || 'sans-serif' }}
-                >
-                  Te esperamos en nuestro gran día
-                </span>
-                <h4
-                  className="text-xl md:text-2xl font-light text-white drop-shadow-lg uppercase tracking-widest mt-2"
-                  style={{ fontFamily: config.theme?.fontTitle || 'serif' }}
-                >
-                  {config.coupleName1} & {config.coupleName2}
-                </h4>
-              </div>
+      {/* 5. GRUPO 2: INVITADOS NO CONFIRMADOS DE LA 1ª ETAPA (AL FINAL) */}
+      <div className="bg-stone-950/50 border border-stone-800 rounded-2xl p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-stone-800 pb-3">
+          <div>
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-stone-900 text-stone-400 border border-stone-700 text-[10px] font-semibold tracking-wider uppercase mb-1">
+              <Icons.UserPlus className="w-3 h-3 text-amber-500" />
+              <span>Confirmaciones Manuales / 1ª Etapa</span>
             </div>
-          )}
-
-          {/* Official Logo / Monogram */}
-          <div className="flex flex-col items-center justify-center text-center max-w-[320px] mx-auto mt-2 w-full">
-            {config.bottomLogoUrl ? (
-              <div className="w-32 h-32 md:w-40 md:h-40 flex items-center justify-center transition-all duration-300 hover:scale-105">
-                <img
-                  src={getApiUrl(config.bottomLogoUrl)}
-                  alt="Logo oficial"
-                  className="max-w-full max-h-full object-contain pointer-events-none select-none"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            ) : (
-              <div className="w-28 h-28 md:w-36 md:h-36 rounded-full border border-dashed border-stone-400/60 flex flex-col items-center justify-center text-stone-500 p-4 hover:border-amber-600 transition-colors">
-                <Icons.Sparkles className="w-5 h-5 text-stone-400 mb-1" />
-                <span className="text-[8px] uppercase tracking-wider text-stone-500 font-light">Espacio de Logo</span>
-              </div>
-            )}
+            <h4 className="text-sm font-semibold text-stone-200">
+              Invitados No Confirmados en 1ª Etapa ({unconfirmedList.length})
+            </h4>
+            <p className="text-xs text-stone-400 mt-0.5">
+              Algunos invitados confirman por llamada o en persona sin usar la web. Desde aquí puedes decidir a quién asignar a la Segunda Confirmación y moverlos para que cuenten en el conteo final.
+            </p>
           </div>
 
-          {/* Footer Text */}
-          <footer
-            className="w-full text-center pt-8 pb-2 text-xs uppercase tracking-widest text-stone-600"
-            style={{ fontFamily: config.theme?.fontBody || 'sans-serif' }}
+          {/* Search within unconfirmed */}
+          <div className="relative">
+            <Icons.Search className="w-3.5 h-3.5 text-stone-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={unconfirmedSearch}
+              onChange={(e) => setUnconfirmedSearch(e.target.value)}
+              placeholder="Buscar no confirmados..."
+              className="pl-8 pr-3 py-1.5 bg-stone-900 border border-stone-700 rounded-lg text-xs text-stone-200 outline-none focus:border-amber-500 placeholder-stone-500 w-52"
+            />
+          </div>
+        </div>
+
+        {filteredUnconfirmedList.length === 0 ? (
+          <div className="py-8 text-center text-stone-500 text-xs">
+            {unconfirmedList.length === 0
+              ? '¡Excelente! Todos los invitados registrados están en la lista de Segunda Confirmación.'
+              : 'No se encontraron invitados con la búsqueda actual.'}
+          </div>
+        ) : (
+          <div className="border border-stone-800 rounded-xl overflow-hidden bg-stone-950/30">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-stone-900/80 text-stone-400 border-b border-stone-800 uppercase tracking-wider">
+                    <th className="p-3 font-semibold">Invitado (Editar)</th>
+                    <th className="p-3 font-semibold">Teléfono</th>
+                    <th className="p-3 font-semibold text-center">Pases</th>
+                    <th className="p-3 font-semibold">Estado 1ª Etapa</th>
+                    <th className="p-3 font-semibold text-center">Contactar (WhatsApp)</th>
+                    <th className="p-3 font-semibold text-center">Decidir Asignación a 2ª Confirmación</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-800/50 text-stone-300">
+                  {filteredUnconfirmedList.map((item) => {
+                    const isItemUpdating = updatingId === item.sourceId;
+                    const isEditingPhone = editingPhoneId === item.sourceId;
+                    const isEditingName = editingNameId === item.sourceId;
+                    const isEditingPasses = editingPassesId === item.sourceId;
+                    const guestCode = item.guestCode || item.sourceId;
+                    const whatsappUrl = buildWhatsAppUrl(item.phone, item.name, false, guestCode);
+                    const dedicatedUrl = getDirectGuestUrl(guestCode);
+
+                    return (
+                      <tr key={item.sourceId} className="hover:bg-stone-900/30 transition-colors">
+                        {/* Name with Inline Edit */}
+                        <td className="p-3">
+                          {isEditingName ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={nameDraft}
+                                onChange={(e) => setNameDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveName(item.sourceId, item.sourceType);
+                                  if (e.key === 'Escape') setEditingNameId(null);
+                                }}
+                                className="w-36 sm:w-48 px-2 py-1 bg-stone-900 border border-amber-500 rounded text-xs text-stone-100 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveName(item.sourceId, item.sourceType)}
+                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                                title="Guardar nombre final"
+                              >
+                                <Icons.Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingNameId(null)}
+                                className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-400 cursor-pointer"
+                                title="Cancelar"
+                              >
+                                <Icons.X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 group">
+                              <span className="font-medium text-stone-200">{item.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditName(item.sourceId, item.name)}
+                                className="opacity-60 group-hover:opacity-100 text-stone-400 hover:text-amber-400 transition-opacity p-0.5 cursor-pointer"
+                                title="Editar nombre final"
+                              >
+                                <Icons.Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Phone with Inline Edit */}
+                        <td className="p-3">
+                          {isEditingPhone ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={phoneDraft}
+                                onChange={(e) => setPhoneDraft(e.target.value)}
+                                placeholder="ej. 9876-5432"
+                                className="w-28 px-2 py-1 bg-stone-900 border border-amber-500 rounded text-xs text-stone-100 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSavePhone(item.sourceId)}
+                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                                title="Guardar teléfono"
+                              >
+                                <Icons.Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPhoneId(null)}
+                                className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-400 cursor-pointer"
+                                title="Cancelar"
+                              >
+                                <Icons.X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : item.phone ? (
+                            <div className="flex items-center gap-1.5 font-mono text-stone-300">
+                              <Icons.Phone className="w-3 h-3 text-stone-500" />
+                              <span>{item.phone}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditPhone(item.sourceId, item.phone)}
+                                className="p-0.5 text-stone-500 hover:text-amber-400 transition-colors cursor-pointer"
+                                title="Editar teléfono"
+                              >
+                                <Icons.Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditPhone(item.sourceId, '')}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-stone-900 text-amber-400 border border-stone-800 hover:border-amber-500/50 transition-colors cursor-pointer"
+                              title="Registrar teléfono"
+                            >
+                              <Icons.Plus className="w-2.5 h-2.5" />
+                              <span>+ Agregar cel</span>
+                            </button>
+                          )}
+                        </td>
+
+                        {/* Passes with Inline Edit */}
+                        <td className="p-3 text-center">
+                          {isEditingPasses ? (
+                            <div className="inline-flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={passesDraft}
+                                onChange={(e) => setPassesDraft(Math.max(1, parseInt(e.target.value) || 1))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSavePasses(item.sourceId, item.sourceType);
+                                  if (e.key === 'Escape') setEditingPassesId(null);
+                                }}
+                                className="w-14 px-1.5 py-0.5 bg-stone-900 border border-amber-500 rounded text-center text-xs text-stone-100 outline-none"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSavePasses(item.sourceId, item.sourceType)}
+                                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                                title="Guardar pases"
+                              >
+                                <Icons.Check className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingPassesId(null)}
+                                className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-400 cursor-pointer"
+                                title="Cancelar"
+                              >
+                                <Icons.X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center justify-center gap-1 group">
+                              <span className="inline-block px-2.5 py-1 rounded-full bg-stone-900 border border-stone-800 font-mono text-stone-300">
+                                {item.passes} {item.passes === 1 ? 'pase' : 'pases'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditPasses(item.sourceId, item.passes)}
+                                className="opacity-60 group-hover:opacity-100 text-stone-400 hover:text-amber-400 transition-opacity p-0.5 cursor-pointer"
+                                title="Editar pases asignados"
+                              >
+                                <Icons.Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Reason / Status */}
+                        <td className="p-3">
+                          {item.reason === 'declined' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-950/40 text-red-400 border border-red-800/40 text-[10px]">
+                              <Icons.X className="w-2.5 h-2.5" />
+                              <span>Declinó en 1ª Etapa</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-900 text-stone-400 border border-stone-800 text-[10px]">
+                              <Icons.Clock className="w-2.5 h-2.5 text-amber-500" />
+                              <span>Sin registrar en web</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* WhatsApp & Dedicated Link (ALWAYS CREATED) */}
+                        <td className="p-3 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            <a
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-400 border border-emerald-800/40 rounded-lg text-[11px] font-medium transition-all cursor-pointer active:scale-95"
+                              title={
+                                item.phone
+                                  ? `Abrir chat directo con ${item.phone} (Enlace personalizado)`
+                                  : 'Sin celular: abre WhatsApp para elegir el contacto a quien preguntar'
+                              }
+                            >
+                              <Icons.MessageCircle className="w-3 h-3 text-emerald-400" />
+                              <span>{item.phone ? 'WhatsApp' : 'WhatsApp (Elegir)'}</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(dedicatedUrl);
+                                setActionFeedback(`Enlace dedicado copiado para ${item.name}`);
+                                setTimeout(() => setActionFeedback(null), 3000);
+                              }}
+                              className="p-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-amber-400 border border-stone-800 transition-colors cursor-pointer"
+                              title="Copiar enlace dedicado personalizado"
+                            >
+                              <Icons.Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* MOVE TO SECOND CONFIRMATION BUTTONS */}
+                        <td className="p-3 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            {/* Move and mark YES */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveToSecondConfirmation(item, 'yes')}
+                              disabled={isItemUpdating}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-stone-950 font-semibold rounded-lg text-[11px] transition-all cursor-pointer shadow-sm active:scale-95"
+                              title="Confirmar manual y mover a la lista oficial con SÍ asistirá"
+                            >
+                              <Icons.ArrowUp className="w-3 h-3" />
+                              <span>Mover como SÍ</span>
+                            </button>
+
+                            {/* Move as Pending */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveToSecondConfirmation(item, 'pending')}
+                              disabled={isItemUpdating}
+                              className="flex items-center gap-1 px-2 py-1 bg-stone-800 hover:bg-stone-700 text-amber-300 font-medium rounded-lg text-[11px] transition-all cursor-pointer"
+                              title="Mover a la Segunda Confirmación como Pendiente para decidir después"
+                            >
+                              <Icons.Plus className="w-3 h-3" />
+                              <span>Mover Pendiente</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 6. FRONTEND INVITATION PREVIEW / LINK BANNER */}
+      <div className="pt-6 pb-2 border-t border-stone-800">
+        <div className="bg-stone-900/60 border border-amber-600/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-left">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <Icons.ExternalLink className="w-5 h-5" />
+            </div>
+            <div>
+              <h5 className="text-sm font-semibold text-stone-200">
+                Frontend de Segunda Confirmación para Invitados
+              </h5>
+              <p className="text-xs text-stone-400">
+                Aquí los invitados ingresan o buscan su nombre para ver sus pases asignados y confirmar con botones interactivos minimalistas, postal con foto, logo y pie de página.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="?confirmacion2=true"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 rounded-xl font-semibold text-xs tracking-wider uppercase transition-all shadow-md active:scale-95 shrink-0"
           >
-            {config.coupleName1} & {config.coupleName2} —{' '}
-            {new Date(config.dateIso).toLocaleDateString('es-ES', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-            }).replace(/\//g, ' . ')}
-          </footer>
+            <span>Abrir Vista Invitados</span>
+            <Icons.ExternalLink className="w-4 h-4" />
+          </a>
         </div>
       </div>
     </div>

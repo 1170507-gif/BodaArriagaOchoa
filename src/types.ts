@@ -95,6 +95,7 @@ export interface RsvpResponse {
 export interface Guest {
   id: string;
   name: string;
+  phone?: string;
   maxGuests: number;
   code: string; // personalized slug / unique code
   confirmed: boolean;

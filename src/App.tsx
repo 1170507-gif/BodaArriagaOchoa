@@ -8,6 +8,7 @@ import * as Icons from 'lucide-react';
 import { WeddingConfig, RsvpResponse } from './types';
 import { DEFAULT_WEDDING_CONFIG } from './defaultConfig';
 import InvitationPreview from './components/InvitationPreview';
+import SecondConfirmationView from './components/SecondConfirmationView';
 import AdminPanel from './components/AdminPanel';
 import { getVideoFromIndexedDB } from './utils/indexedDB';
 import { getApiUrl } from './utils/apiUrl';
@@ -36,6 +37,27 @@ export default function App() {
   const [localMusicUrl, setLocalMusicUrl] = useState<string | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentView, setCurrentView] = useState<'invitation' | 'second_confirmation'>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('confirmacion2') === 'true' || p.get('segunda_confirmacion') === 'true') {
+        return 'second_confirmation';
+      }
+    }
+    return 'invitation';
+  });
+
+  // Listen for browser popstate or URL changes
+  useEffect(() => {
+    const handleLocation = () => {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('confirmacion2') === 'true' || p.get('segunda_confirmacion') === 'true') {
+        setCurrentView('second_confirmation');
+      }
+    };
+    window.addEventListener('popstate', handleLocation);
+    return () => window.removeEventListener('popstate', handleLocation);
+  }, []);
 
   // Load config on mount from Firestore or localStorage
   useEffect(() => {
@@ -258,13 +280,72 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen bg-stone-950 flex flex-col font-sans select-none overflow-x-clip">
-      <InvitationPreview
-        config={activeConfig}
-        onSubmitRsvp={handleRsvpSubmit}
-        isEditorOpen={isAdmin}
-        onConfigChange={handleConfigChange}
-      />
-      
+      {currentView === 'second_confirmation' ? (
+        <SecondConfirmationView
+          config={activeConfig}
+          onBackToMain={() => {
+            setCurrentView('invitation');
+            const url = new URL(window.location.href);
+            url.searchParams.delete('confirmacion2');
+            url.searchParams.delete('segunda_confirmacion');
+            window.history.pushState({}, '', url.toString());
+          }}
+        />
+      ) : (
+        <InvitationPreview
+          config={activeConfig}
+          onSubmitRsvp={handleRsvpSubmit}
+          isEditorOpen={isAdmin}
+          onConfigChange={handleConfigChange}
+          onOpenSecondConfirmation={(guestCode) => {
+            setCurrentView('second_confirmation');
+            const url = new URL(window.location.href);
+            url.searchParams.set('confirmacion2', 'true');
+            if (guestCode) {
+              url.searchParams.set('g', guestCode);
+            }
+            window.history.pushState({}, '', url.toString());
+          }}
+        />
+      )}
+
+      {/* Floating View Switcher for easy testing and navigation */}
+      <div className="fixed bottom-4 left-4 z-40 flex items-center gap-1 p-1 bg-stone-900/90 backdrop-blur-md border border-stone-700/60 rounded-full shadow-2xl text-[11px]">
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentView('invitation');
+            const url = new URL(window.location.href);
+            url.searchParams.delete('confirmacion2');
+            window.history.pushState({}, '', url.toString());
+          }}
+          className={`px-3 py-1.5 rounded-full transition-all cursor-pointer font-medium ${
+            currentView === 'invitation'
+              ? 'bg-amber-600 text-stone-950 font-semibold shadow'
+              : 'text-stone-300 hover:text-white'
+          }`}
+        >
+          Invitación
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentView('second_confirmation');
+            const url = new URL(window.location.href);
+            url.searchParams.set('confirmacion2', 'true');
+            window.history.pushState({}, '', url.toString());
+          }}
+          className={`px-3 py-1.5 rounded-full transition-all cursor-pointer font-medium flex items-center gap-1.5 ${
+            currentView === 'second_confirmation'
+              ? 'bg-amber-600 text-stone-950 font-semibold shadow'
+              : 'text-stone-300 hover:text-white'
+          }`}
+        >
+          <span>2ª Confirmación</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        </button>
+      </div>
+
       {/* Sleek organizer dashboard for video upload, guest list & full live content editor */}
       <AdminPanel 
         config={activeConfig}

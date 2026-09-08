@@ -46,13 +46,14 @@ service cloud.firestore {
       return data.name is string && data.name.size() <= 100
           && data.maxGuests is int && data.maxGuests >= 1 && data.maxGuests <= 50
           && data.code is string && data.code.size() <= 100 && data.code.matches('^[a-zA-Z0-9_\\-]+$')
+          && (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 50))
           && (!('confirmed' in data) || data.confirmed is bool)
-          && (!('attending' in data) || (data.attending is string && (data.attending == 'yes' || data.attending == 'no')))
-          && (!('guestsCount' in data) || (data.guestsCount is int && data.guestsCount >= 0 && data.guestsCount <= 20))
-          && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
-          && (!('submittedAt' in data) || (data.submittedAt is string && data.submittedAt.size() <= 50))
-          && (!('secondConfirmation' in data) || (data.secondConfirmation is string && (data.secondConfirmation == 'yes' || data.secondConfirmation == 'no' || data.secondConfirmation == 'pending')))
-          && (!('secondConfirmedAt' in data) || (data.secondConfirmedAt is string && data.secondConfirmedAt.size() <= 50));
+          && (!('attending' in data) || data.attending == null || (data.attending is string && (data.attending == 'yes' || data.attending == 'no')))
+          && (!('guestsCount' in data) || data.guestsCount == null || (data.guestsCount is int && data.guestsCount >= 0 && data.guestsCount <= 20))
+          && (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 1000))
+          && (!('submittedAt' in data) || data.submittedAt == null || (data.submittedAt is string && data.submittedAt.size() <= 50))
+          && (!('secondConfirmation' in data) || data.secondConfirmation == null || (data.secondConfirmation is string && (data.secondConfirmation == 'yes' || data.secondConfirmation == 'no' || data.secondConfirmation == 'pending')))
+          && (!('secondConfirmedAt' in data) || data.secondConfirmedAt == null || (data.secondConfirmedAt is string && data.secondConfirmedAt.size() <= 50));
     }
 
     // Wedding invitation configuration rules
@@ -75,9 +76,9 @@ service cloud.firestore {
       allow create: if isValidId(guestId) && isValidGuest(incoming());
       allow update: if isValidId(guestId) && isValidGuest(incoming()) && (
         // Action 1: Guest confirming RSVP (strictly limits affected keys to confirmation details)
-        (incoming().diff(existing()).affectedKeys().hasOnly(['confirmed', 'attending', 'guestsCount', 'notes', 'submittedAt', 'secondConfirmation', 'secondConfirmedAt'])) ||
+        (incoming().diff(existing()).affectedKeys().hasAny(['confirmed', 'attending', 'guestsCount', 'notes', 'submittedAt', 'secondConfirmation', 'secondConfirmedAt', 'phone'])) ||
         // Action 2: Admin updating core guest properties
-        (incoming().diff(existing()).affectedKeys().hasOnly(['name', 'maxGuests', 'code', 'confirmed', 'attending', 'guestsCount', 'notes', 'submittedAt', 'secondConfirmation', 'secondConfirmedAt']))
+        (incoming().diff(existing()).affectedKeys().hasAny(['name', 'phone', 'maxGuests', 'code', 'confirmed', 'attending', 'guestsCount', 'notes', 'submittedAt', 'secondConfirmation', 'secondConfirmedAt']))
       );
       allow delete: if isValidId(guestId);
     }
