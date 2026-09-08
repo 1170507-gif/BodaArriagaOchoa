@@ -285,11 +285,6 @@ export default function SecondConfirmationView({
   };
 
   const deadline = config.secondConfirmationDeadline || '12 de septiembre';
-  const heroImage =
-    config.secondConfirmationImage ||
-    config.blurredPhotoUrl ||
-    config.images?.portrait ||
-    '/images/invitacion_1.webp';
 
   return (
     <div
@@ -349,40 +344,6 @@ export default function SecondConfirmationView({
             Estamos cerrando la lista final de comensales con el banquete y el salón. Por favor
             confirma tus pases para asegurar tu lugar.
           </p>
-        </motion.div>
-
-        {/* ROMANTIC POSTAL / IMAGE CARD */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.1 }}
-          className="w-full aspect-[16/10] sm:aspect-[16/9] rounded-3xl overflow-hidden shadow-xl relative border border-stone-300/60 mb-8 group"
-        >
-          <img
-            src={heroImage}
-            alt="Pareja"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-            referrerPolicy="no-referrer"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/70 via-stone-950/20 to-transparent flex flex-col justify-end p-6 text-left">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-stone-300 font-light">
-              Nuestra Boda
-            </span>
-            <p
-              className="text-lg md:text-xl text-white font-light mt-0.5 tracking-wide"
-              style={{ fontFamily: titleFont }}
-            >
-              {config.locationName || 'Recepción Nupcial'}
-            </p>
-            <p className="text-[11px] text-stone-300">
-              {new Date(config.dateIso).toLocaleDateString('es-ES', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
-          </div>
         </motion.div>
 
         {/* GUEST INTERACTIVE CONFIRMATION SECTION */}

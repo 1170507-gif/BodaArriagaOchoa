@@ -261,8 +261,8 @@ export default function SecondConfirmationTab({
     const directUrl = getDirectGuestUrl(guestCode);
     
     const message = isConfirmedStage1
-      ? `¡Hola ${guestName}! Te escribimos con mucho cariño para nuestra boda (${coupleNames}). Te recordamos que la fecha límite para la segunda confirmación de asistencia es el ${deadline}. Por favor confirma tus pases asignados directamente aquí: ${directUrl}`
-      : `¡Hola ${guestName}! Te escribimos con mucho cariño para la boda de ${coupleNames}. Estamos cerrando la lista oficial de comensales (fecha límite: ${deadline}). Por favor confirma tus pases asignados directamente aquí: ${directUrl}`;
+      ? `¡Hola ${guestName}! 💛 Te escribimos con mucho cariño de parte de ${coupleNames} para recordarte que la fecha límite de tu segunda confirmación de asistencia es el ${deadline}. En la imagen que te compartimos puedes ver el dress code y sus restricciones. Ayúdanos, por favor, confirmando tus pases asignados directamente aquí: ${directUrl}`
+      : `¡Hola ${guestName}! 💛 Te escribimos con mucho cariño de parte de ${coupleNames}. Estamos cerrando la lista oficial de comensales y la fecha límite para confirmar es el ${deadline}. En la imagen que te compartimos puedes ver el dress code y sus restricciones. Ayúdanos, por favor, confirmando tus pases asignados directamente aquí: ${directUrl}`;
 
     const encoded = encodeURIComponent(message);
     if (!phone || !phone.trim()) {

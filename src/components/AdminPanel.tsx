@@ -928,22 +928,6 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
 
   return (
     <>
-      {/* Floating admin access button in the bottom right corner - ONLY visible when accessed via admin link or authenticated */}
-      {(isAdminUrl || isAuthenticated) && (
-        <div className="fixed bottom-6 right-6 z-40">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 text-xs uppercase tracking-widest rounded-full bg-stone-900/90 hover:bg-stone-900 text-stone-200 hover:text-amber-400 border border-stone-700/70 hover:border-amber-500/60 backdrop-blur-md shadow-2xl transition-all duration-300 cursor-pointer group"
-            title="Abrir Panel de Administración"
-          >
-            <Icons.SlidersHorizontal className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform duration-300" />
-            <span className="font-semibold text-[11px]">Panel Admin</span>
-          </motion.button>
-        </div>
-      )}
-
       {/* Admin Panel Modal Overlay */}
       <AnimatePresence>
         {isOpen && (
