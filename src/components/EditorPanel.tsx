@@ -968,6 +968,68 @@ export default function EditorPanel({
                         </div>
                       )}
                     </div>
+
+                    {/* Capa de la Pareja sobre el Video */}
+                    <div className="border-t border-stone-800/60 pt-3 mt-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="block text-[11px] font-medium text-stone-300">Mostrar Foto de Pareja sobre el Video</span>
+                        <input
+                          type="checkbox"
+                          checked={config.showCoupleOverlay !== false}
+                          onChange={(e) => updateConfigField('showCoupleOverlay', e.target.checked)}
+                          className="w-4 h-4 rounded cursor-pointer accent-amber-400"
+                        />
+                      </div>
+
+                      {config.showCoupleOverlay !== false && (
+                        <div className="space-y-3 bg-stone-900/40 p-2.5 rounded border border-stone-800/60">
+                          <p className="text-[10px] text-stone-400 leading-relaxed">
+                            Muestra la foto de la pareja con fondo transparente (PNG) directamente sobre el video. Puedes moverla arrastrándola sobre la invitación o con los deslizadores.
+                          </p>
+
+                          <div>
+                            <label className="block text-[10px] text-stone-400 mb-1">Posición Vertical: {config.coupleOverlayY ?? 65}%</label>
+                            <input
+                              type="range"
+                              min="5"
+                              max="95"
+                              value={config.coupleOverlayY ?? 65}
+                              onChange={(e) => updateConfigField('coupleOverlayY', parseInt(e.target.value))}
+                              className="w-full accent-amber-400"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] text-stone-400 mb-1">Posición Horizontal: {config.coupleOverlayX ?? 50}%</label>
+                            <input
+                              type="range"
+                              min="5"
+                              max="95"
+                              value={config.coupleOverlayX ?? 50}
+                              onChange={(e) => updateConfigField('coupleOverlayX', parseInt(e.target.value))}
+                              className="w-full accent-amber-400"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] text-stone-400 mb-1">Tamaño (Escala): {config.coupleOverlayScale ?? 1.0}x</label>
+                            <input
+                              type="range"
+                              min="0.4"
+                              max="2.2"
+                              step="0.05"
+                              value={config.coupleOverlayScale ?? 1.0}
+                              onChange={(e) => updateConfigField('coupleOverlayScale', parseFloat(e.target.value))}
+                              className="w-full accent-amber-400"
+                            />
+                          </div>
+
+                          <div className="pt-1">
+                            {renderImageUploader('images.coupleOverlay', 'couple', 'Imagen PNG personalizada de la Pareja')}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

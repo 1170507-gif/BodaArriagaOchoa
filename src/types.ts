@@ -60,17 +60,24 @@ export interface WeddingConfig {
     detailsHeader?: string;
     rsvpHeader?: string;
     floralDivider?: string;
+    coupleOverlay?: string;
   };
   polaroids?: { id: string; url: string; caption?: string; posX?: number; posY?: number; zoom?: number }[];
   blurredPhotoUrl?: string;
   bottomLogoUrl?: string;
   weddingWebsiteUrl?: string;
+  secondConfirmationDeadline?: string;
+  secondConfirmationImage?: string;
   videoTextOverlayY?: number;
   videoTextOverlayX?: number;
   videoTextOverlayScale?: number;
   videoTextPhrase?: string;
   videoTextNames?: string;
   showVideoTextOverlay?: boolean;
+  showCoupleOverlay?: boolean;
+  coupleOverlayX?: number;
+  coupleOverlayY?: number;
+  coupleOverlayScale?: number;
 }
 
 export interface RsvpResponse {
@@ -81,6 +88,8 @@ export interface RsvpResponse {
   guestsCount: number;
   notes: string;
   submittedAt: string; // ISO string
+  secondConfirmation?: 'yes' | 'no' | 'pending';
+  secondConfirmedAt?: string;
 }
 
 export interface Guest {
@@ -93,5 +102,7 @@ export interface Guest {
   guestsCount?: number;
   notes?: string;
   submittedAt?: string;
+  secondConfirmation?: 'yes' | 'no' | 'pending';
+  secondConfirmedAt?: string;
 }
 

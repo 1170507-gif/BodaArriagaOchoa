@@ -8,13 +8,13 @@ async function run() {
   const apiKey = process.env.GEMINI_API_KEY || '';
   try {
     const aiInstance = new GoogleGenAI({ apiKey });
-    const file = fs.readFileSync('public/images/imagen_07.png');
+    const file = fs.readFileSync('public/images/pareja_overlay_ivory.png');
     
-    console.log('Sending the newly generated transparent PNG to Gemini...');
+    console.log('Sending pareja_overlay_ivory.png to Gemini...');
     const response = await aiInstance.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [
-        'Analyze this PNG image: "imagen_07.png". Check if the white/light-grey background has been successfully removed and if it is truly transparent now, or if there is still a solid background or nasty halos. Describe how it looks.',
+        'Analyze this PNG image: "pareja_overlay_ivory.png". Describe what is in the image, whether the background is transparent or black or white, if it is the couple holding hands, and whether it has clean edges / transparency.',
         {
           inlineData: {
             mimeType: 'image/png',

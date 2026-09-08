@@ -6,6 +6,7 @@ import { collection, getDocs, deleteDoc, doc, addDoc, updateDoc } from 'firebase
 import { getApiUrl } from '../utils/apiUrl';
 import { RsvpResponse, WeddingConfig, Guest } from '../types';
 import EditorPanel from './EditorPanel';
+import SecondConfirmationTab from './SecondConfirmationTab';
 
 interface AdminPanelProps {
   config: WeddingConfig;
@@ -29,7 +30,7 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
   const [isLoadingRsvps, setIsLoadingRsvps] = useState(false);
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<'guests' | 'rsvps' | 'video' | 'audio' | 'design'>('guests');
+  const [activeTab, setActiveTab] = useState<'guests' | 'rsvps' | 'secondConfirmation' | 'video' | 'audio' | 'design'>('guests');
 
   // Guest manager states
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -400,6 +401,68 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
     }
   };
 
+  // Update second confirmation for guest
+  const handleUpdateGuestSecondConfirmation = async (guestId: string, status: 'yes' | 'no' | 'pending') => {
+    const timestamp = new Date().toISOString();
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'guests', guestId), {
+          secondConfirmation: status,
+          secondConfirmedAt: timestamp
+        });
+      } catch (err) {
+        console.error('Error updating guest second confirmation:', err);
+        try {
+          handleFirestoreError(err, OperationType.UPDATE, `guests/${guestId}`);
+        } catch (e) {
+          // Handled
+        }
+      }
+    }
+    setGuests(prev => prev.map(g => g.id === guestId ? { ...g, secondConfirmation: status, secondConfirmedAt: timestamp } : g));
+    const saved = localStorage.getItem('wedding_guests_v1');
+    if (saved) {
+      try {
+        const list = JSON.parse(saved) as Guest[];
+        const updated = list.map(g => g.id === guestId ? { ...g, secondConfirmation: status, secondConfirmedAt: timestamp } : g);
+        localStorage.setItem('wedding_guests_v1', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Update second confirmation for RSVP
+  const handleUpdateRsvpSecondConfirmation = async (rsvpId: string, status: 'yes' | 'no' | 'pending') => {
+    const timestamp = new Date().toISOString();
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'rsvps', rsvpId), {
+          secondConfirmation: status,
+          secondConfirmedAt: timestamp
+        });
+      } catch (err) {
+        console.error('Error updating rsvp second confirmation:', err);
+        try {
+          handleFirestoreError(err, OperationType.UPDATE, `rsvps/${rsvpId}`);
+        } catch (e) {
+          // Handled
+        }
+      }
+    }
+    setRsvps(prev => prev.map(r => r.id === rsvpId ? { ...r, secondConfirmation: status, secondConfirmedAt: timestamp } : r));
+    const saved = localStorage.getItem('wedding_rsvps_v1');
+    if (saved) {
+      try {
+        const list = JSON.parse(saved) as RsvpResponse[];
+        const updated = list.map(r => r.id === rsvpId ? { ...r, secondConfirmation: status, secondConfirmedAt: timestamp } : r);
+        localStorage.setItem('wedding_rsvps_v1', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   // CSV Export
   const handleExportCSV = () => {
     if (rsvps.length === 0) {
@@ -667,6 +730,18 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
                       >
                         <Icons.Users className="w-4 h-4 text-amber-500" />
                         <span>Respuestas (RSVPs)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('secondConfirmation')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 cursor-pointer transition-all whitespace-nowrap ${
+                          activeTab === 'secondConfirmation'
+                            ? 'border-amber-600 text-stone-100 bg-stone-900/40'
+                            : 'border-transparent text-stone-400 hover:text-stone-200 hover:bg-stone-900/10'
+                        }`}
+                      >
+                        <Icons.CalendarCheck className="w-4 h-4 text-amber-500" />
+                        <span>Segunda Confirmación</span>
                       </button>
                       <button
                         type="button"
@@ -1092,6 +1167,23 @@ export default function AdminPanel({ config, onVideoUploaded, onMusicUploaded, o
                           )}
                         </div>
                       </div>
+                    )}
+
+                    {/* Tab 2.5: SEGUNDA CONFIRMACIÓN */}
+                    {activeTab === 'secondConfirmation' && (
+                      <SecondConfirmationTab
+                        guests={guests}
+                        rsvps={rsvps}
+                        config={config}
+                        onConfigChange={onConfigChange}
+                        onUpdateGuestSecondConfirmation={handleUpdateGuestSecondConfirmation}
+                        onUpdateRsvpSecondConfirmation={handleUpdateRsvpSecondConfirmation}
+                        onReload={() => {
+                          loadGuests();
+                          loadRsvps();
+                        }}
+                        isLoading={isLoadingGuests || isLoadingRsvps}
+                      />
                     )}
 
                     {/* Tab 3: VIDEO UPLOADER */}

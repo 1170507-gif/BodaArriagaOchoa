@@ -74,7 +74,9 @@
         "attending": { "type": "string", "enum": ["yes", "no"] },
         "guestsCount": { "type": "number" },
         "notes": { "type": "string" },
-        "submittedAt": { "type": "string", "format": "date-time" }
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "secondConfirmation": { "type": "string", "enum": ["yes", "no", "pending"] },
+        "secondConfirmedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["fullName", "phone", "attending", "guestsCount"]
     },
@@ -91,7 +93,9 @@
         "attending": { "type": "string", "enum": ["yes", "no"] },
         "guestsCount": { "type": "number" },
         "notes": { "type": "string" },
-        "submittedAt": { "type": "string", "format": "date-time" }
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "secondConfirmation": { "type": "string", "enum": ["yes", "no", "pending"] },
+        "secondConfirmedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "maxGuests", "code"]
     }
