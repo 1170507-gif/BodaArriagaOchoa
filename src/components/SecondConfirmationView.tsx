@@ -208,7 +208,7 @@ export default function SecondConfirmationView({
           secondConfirmation: status,
           secondConfirmedAt: nowIso,
           guestsCount: passesToConfirm > 0 ? passesToConfirm : selectedGuest.assignedPasses,
-          notes: dietaryNotes.trim() ? dietaryNotes.trim() : undefined,
+          notes: dietaryNotes.trim(),
         });
       }
 
